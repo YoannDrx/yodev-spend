@@ -1,0 +1,5 @@
+ALTER TABLE "billing_account_projects" ADD CONSTRAINT "billing_allocation_bps_check" CHECK ("billing_account_projects"."allocation_bps" between 0 and 10000);--> statement-breakpoint
+ALTER TABLE "cost_entries" ADD CONSTRAINT "cost_entry_period_check" CHECK ("cost_entries"."period_end" >= "cost_entries"."period_start");--> statement-breakpoint
+ALTER TABLE "project_integrations" ADD CONSTRAINT "integration_confidence_check" CHECK ("project_integrations"."confidence" between 0 and 100);--> statement-breakpoint
+ALTER TABLE "repository_provider_observations" ADD CONSTRAINT "observation_confidence_check" CHECK ("repository_provider_observations"."confidence" between 0 and 100);--> statement-breakpoint
+ALTER TABLE "repository_provider_observations" ADD CONSTRAINT "observation_absences_check" CHECK ("repository_provider_observations"."consecutive_absences" >= 0);

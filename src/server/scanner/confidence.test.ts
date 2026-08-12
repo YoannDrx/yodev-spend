@@ -1,0 +1,4 @@
+import { describe,expect,it } from "vitest";
+import { confidenceFor,confidenceLevel,EVIDENCE_WEIGHTS } from "./confidence";
+
+describe("confidence",()=>{it("caps explainable evidence at 100",()=>{const evidence=[{providerSlug:"resend",type:"package" as const,key:"resend",filePath:"package.json",weight:EVIDENCE_WEIGHTS.package,metadata:{}},{providerSlug:"resend",type:"import" as const,key:"resend",filePath:"src/email.ts",weight:EVIDENCE_WEIGHTS.import,metadata:{}},{providerSlug:"resend",type:"env_variable" as const,key:"RESEND_API_KEY",filePath:".env.example",weight:EVIDENCE_WEIGHTS.env_variable,metadata:{}}];expect(confidenceFor(evidence)).toBe(95);expect(confidenceLevel(95)).toBe("strong");expect(confidenceFor([...evidence,{...evidence[0],type:"manual",weight:100}])).toBe(100);});it.each([[0,"weak"],[30,"possible"],[60,"likely"],[85,"strong"]] as const)("maps %s to %s",(score,level)=>expect(confidenceLevel(score)).toBe(level));});

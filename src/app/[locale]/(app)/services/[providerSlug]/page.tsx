@@ -1,0 +1,7 @@
+import { PageHeader } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
+import { formatMoney } from "@/lib/utils";
+import { requireWorkspaceContext } from "@/server/auth/context";
+import { getPortfolioData } from "@/server/dashboard/queries";
+
+export default async function ServiceDetailPage({params}:PageProps<"/[locale]/services/[providerSlug]">){const {locale,providerSlug}=await params;const context=await requireWorkspaceContext(locale);const data=await getPortfolioData(context.workspaceId);const service=data.services.find((item)=>item.slug===providerSlug)??data.services[0];return <><PageHeader title={service?.name??providerSlug} subtitle={`${service?.category??"Provider"} · ${service?.projects??0} projects`}/><div className="dashboard-grid"><section className="panel"><div className="panel-head"><h2>Projects & evidence</h2></div><div className="panel-body">{data.projects.slice(0,service?.projects||1).map((project)=><div className="list-row" key={project.id}><div><strong>{project.name}</strong><small>package.json · environment variable · import</small></div><StatusBadge status={service?.status as "active"|"confirmed"|"candidate"|"stale"}/></div>)}</div></section><section className="panel"><div className="panel-head"><h2>Billing</h2></div><div className="panel-body"><div className="metric-card"><span>Monthly recurring</span><strong>{formatMoney(service?.monthly??0n,"EUR",locale)}</strong><small>Manual source</small></div></div></section></div></>}

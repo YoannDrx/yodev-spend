@@ -1,0 +1,7 @@
+import { Client } from "pg";
+import { afterAll,beforeAll,describe,expect,it } from "vitest";
+
+const databaseUrl=process.env.TEST_DATABASE_URL;
+const suite=databaseUrl?describe:describe.skip;
+
+suite("PostgreSQL migration and seed",()=>{const client=new Client({connectionString:databaseUrl});beforeAll(()=>client.connect());afterAll(()=>client.end());it("creates every critical table",async()=>{const result=await client.query<{table_name:string}>("select table_name from information_schema.tables where table_schema='public'");const names=new Set(result.rows.map((row)=>row.table_name));for(const name of ["workspace_profiles","clients","projects","repositories","scan_runs","detection_evidence","project_integrations","billing_accounts","subscriptions","cost_entries","alerts"])expect(names.has(name)).toBe(true);});it("seeds a usable provider and project inventory",async()=>{const result=await client.query<{providers:string;projects:string}>("select (select count(*) from providers)::text providers,(select count(*) from projects)::text projects");expect(Number(result.rows[0].providers)).toBeGreaterThanOrEqual(29);expect(Number(result.rows[0].projects)).toBeGreaterThanOrEqual(3);});it("stores money as PostgreSQL bigint",async()=>{const result=await client.query<{data_type:string}>("select data_type from information_schema.columns where table_name='subscriptions' and column_name='amount_minor'");expect(result.rows[0].data_type).toBe("bigint");});});

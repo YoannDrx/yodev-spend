@@ -1,0 +1,4 @@
+import { describe,expect,it } from "vitest";
+import { alertDedupeKey,potentialWaste } from "./rules";
+
+describe("alerts",()=>{it("deduplicates potential waste by subscription",()=>{const result=potentialWaste([{subscriptionId:"sub",recurringMinor:1900n,billingAccountId:"a",activeProjectCount:0,allProviderIntegrationsStale:false,scanDataFresh:true,suppressed:false},{subscriptionId:"sub",recurringMinor:1900n,billingAccountId:"a",activeProjectCount:0,allProviderIntegrationsStale:false,scanDataFresh:true,suppressed:false}]);expect(result).toEqual({subscriptionIds:["sub"],amountMinor:1900n});});it("excludes stale data and suppressed advice",()=>expect(potentialWaste([{subscriptionId:"sub",recurringMinor:1900n,billingAccountId:"a",activeProjectCount:0,allProviderIntegrationsStale:false,scanDataFresh:false,suppressed:false}]).amountMinor).toBe(0n));it("builds stable keys",()=>expect(alertDedupeKey("SCAN_FAILED",["repo",null])).toBe("SCAN_FAILED:repo"));});

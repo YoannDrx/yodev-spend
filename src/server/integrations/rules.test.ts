@@ -1,0 +1,4 @@
+import { describe,expect,it } from "vitest";
+import { isPossibleMigration,shouldMarkStale } from "./rules";
+
+describe("integration drift",()=>{it("requires three complete absences spanning fourteen days",()=>{const common={lifecycleStatus:"active",consecutiveAbsences:3,firstAbsentAt:new Date("2026-07-01"),now:new Date("2026-07-15")};expect(shouldMarkStale({...common,complete:true})).toBe(true);expect(shouldMarkStale({...common,complete:false})).toBe(false);expect(shouldMarkStale({...common,consecutiveAbsences:2,complete:true})).toBe(false);});it("only suggests same-category migrations in 30 days",()=>{expect(isPossibleMigration({oldCategory:"email",newCategory:"email",oldStaleAt:new Date("2026-07-01"),newActiveAt:new Date("2026-07-20")})).toBe(true);expect(isPossibleMigration({oldCategory:"email",newCategory:"ai",oldStaleAt:new Date("2026-07-01"),newActiveAt:new Date("2026-07-20")})).toBe(false);});});
