@@ -3,7 +3,9 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 
 function createPool(connectionString: string) {
-  return new Pool({ connectionString, max: 10, idleTimeoutMillis: 20_000 });
+  const url = new URL(connectionString);
+  if (url.searchParams.get("sslmode") === "require") url.searchParams.set("sslmode", "verify-full");
+  return new Pool({ connectionString: url.toString(), max: 10, idleTimeoutMillis: 20_000 });
 }
 
 let pool = process.env.DATABASE_URL ? createPool(process.env.DATABASE_URL) : null;
