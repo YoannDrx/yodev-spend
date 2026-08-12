@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { authMembers, authOrganizations, workspaceProfiles } from "@/db/schema";
@@ -15,6 +15,9 @@ export type WorkspaceContext = { userId: string; workspaceId: string; organizati
 export async function ensureWorkspaceForUser(userId: string) {
   const db = requireDb();
   return db.transaction(async (tx) => {
+    // A first page load can issue concurrent RSC requests. Serialize bootstrap
+    // per user so only one request creates the organization and workspace.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`spend-workspace:${userId}`}))`);
     const existing = await tx.select({ workspaceId: workspaceProfiles.id, organizationId: authMembers.organizationId, role: authMembers.role })
       .from(authMembers)
       .innerJoin(workspaceProfiles, eq(workspaceProfiles.organizationId, authMembers.organizationId))
