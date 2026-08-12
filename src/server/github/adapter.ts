@@ -21,7 +21,7 @@ export async function configureGitHubAppWebhook() {
       accept: "application/vnd.github+json",
       authorization: `Bearer ${authentication.token}`,
       "content-type": "application/json",
-      "x-github-api-version": "2026-03-10",
+      "x-github-api-version": "2022-11-28",
     },
     body: JSON.stringify({
       url: `${env.NEXT_PUBLIC_APP_URL}/api/github/webhooks`,
