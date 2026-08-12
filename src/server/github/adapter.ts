@@ -12,7 +12,7 @@ function app() {
 
 export async function configureGitHubAppWebhook() {
   if (!env.GITHUB_APP_WEBHOOK_SECRET) throw new Error("GitHub App webhook configuration is incomplete.");
-  await app().octokit.request("PATCH /app/hook/config", {
+  await app().octokit.rest.apps.updateWebhookConfigForApp({
     url: `${env.NEXT_PUBLIC_APP_URL}/api/github/webhooks`,
     content_type: "json",
     secret: env.GITHUB_APP_WEBHOOK_SECRET,
