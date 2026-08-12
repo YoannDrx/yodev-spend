@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createAppAuth } from "@octokit/auth-app";
 import { App } from "octokit";
 import { env } from "@/lib/env";
 import { selectCandidatePaths } from "@/server/scanner/candidate-files";
@@ -11,13 +12,25 @@ function app() {
 }
 
 export async function configureGitHubAppWebhook() {
-  if (!env.GITHUB_APP_WEBHOOK_SECRET) throw new Error("GitHub App webhook configuration is incomplete.");
-  await app().octokit.rest.apps.updateWebhookConfigForApp({
-    url: `${env.NEXT_PUBLIC_APP_URL}/api/github/webhooks`,
-    content_type: "json",
-    secret: env.GITHUB_APP_WEBHOOK_SECRET,
-    insecure_ssl: "0",
+  if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY || !env.GITHUB_APP_WEBHOOK_SECRET) throw new Error("GitHub App webhook configuration is incomplete.");
+  const auth = createAppAuth({ appId: env.GITHUB_APP_ID, privateKey: env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, "\n") });
+  const authentication = await auth({ type: "app" });
+  const response = await fetch("https://api.github.com/app/hook/config", {
+    method: "PATCH",
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${authentication.token}`,
+      "content-type": "application/json",
+      "x-github-api-version": "2026-03-10",
+    },
+    body: JSON.stringify({
+      url: `${env.NEXT_PUBLIC_APP_URL}/api/github/webhooks`,
+      content_type: "json",
+      secret: env.GITHUB_APP_WEBHOOK_SECRET,
+      insecure_ssl: "0",
+    }),
   });
+  if (!response.ok) throw new Error(`GitHub webhook configuration failed with status ${response.status}.`);
 }
 
 export class GitHubRepositoryAdapter implements RepositorySourceAdapter {
