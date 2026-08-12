@@ -10,6 +10,16 @@ function app() {
   return new App({ appId: env.GITHUB_APP_ID, privateKey: env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, "\n") });
 }
 
+export async function configureGitHubAppWebhook() {
+  if (!env.GITHUB_APP_WEBHOOK_SECRET) throw new Error("GitHub App webhook configuration is incomplete.");
+  await app().octokit.request("PATCH /app/hook/config", {
+    url: `${env.NEXT_PUBLIC_APP_URL}/api/github/webhooks`,
+    content_type: "json",
+    secret: env.GITHUB_APP_WEBHOOK_SECRET,
+    insecure_ssl: "0",
+  });
+}
+
 export class GitHubRepositoryAdapter implements RepositorySourceAdapter {
   constructor(private installationId: number) {}
   private async octokit() { return app().getInstallationOctokit(this.installationId); }
