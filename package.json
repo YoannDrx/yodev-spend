@@ -2,7 +2,9 @@
   "name": "@yodev/spend",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=22.0.0" },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "type": "module",
   "scripts": {
     "dev": "next dev",
@@ -46,6 +48,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "@swc/helpers": "^0.5.23",
     "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
