@@ -22,7 +22,9 @@ function createAuth() {
     database: drizzleAdapter(requireDb(), { provider: "pg", schema: authSchema, usePlural: false }),
     user: {
       modelName: "authUsers",
-      additionalFields: { githubId: { type: "string", required: false, input: false } },
+      // OAuth profile fields must be accepted as input for Better Auth to persist
+      // values returned by mapProfileToUser. Public credential sign-up is disabled.
+      additionalFields: { githubId: { type: "string", required: false, input: true } },
     },
     session: { modelName: "authSessions", expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24 },
     account: { modelName: "authAccounts", encryptOAuthTokens: true },

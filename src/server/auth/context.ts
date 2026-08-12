@@ -12,7 +12,7 @@ import { assertWorkspaceAccess, assertWorkspaceRole } from "./authorization";
 
 export type WorkspaceContext = { userId: string; workspaceId: string; organizationId: string; role: string };
 
-async function bootstrapWorkspace(userId: string) {
+export async function ensureWorkspaceForUser(userId: string) {
   const db = requireDb();
   return db.transaction(async (tx) => {
     const existing = await tx.select({ workspaceId: workspaceProfiles.id, organizationId: authMembers.organizationId, role: authMembers.role })
@@ -35,7 +35,7 @@ export async function requireWorkspaceContext(locale = "fr"): Promise<WorkspaceC
   }
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session?.user) redirect(`/${locale}/sign-in`);
-  const workspace = await bootstrapWorkspace(session.user.id);
+  const workspace = await ensureWorkspaceForUser(session.user.id);
   return { userId: session.user.id, ...workspace };
 }
 
