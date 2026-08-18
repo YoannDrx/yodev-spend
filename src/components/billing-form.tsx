@@ -1,11 +1,13 @@
 import { Plus, ReceiptText } from "lucide-react";
-import { createBillingAccount, createCostEntry } from "@/server/actions/billing";
+import { createBillingAccount, createCostEntry, updateBillingAccountAllocation } from "@/server/actions/billing";
 
 const providerOptions = [
   "vercel", "aws", "cloudflare", "github", "resend", "sendgrid", "mailgun", "postmark",
   "supabase", "firebase", "neon", "mongodb-atlas", "upstash", "railway", "render",
   "netlify", "fly-io", "openai", "anthropic", "sentry", "posthog", "stripe", "twilio",
   "mapbox", "clerk", "auth0", "algolia", "sanity", "contentful",
+  "apple-developer", "ovhcloud", "google-cloud", "digitalocean", "figma", "jetbrains",
+  "adobe", "notion", "linear",
 ];
 
 type Labels = {
@@ -17,6 +19,9 @@ type Labels = {
   workspace: string;
   client: string;
   shared: string;
+  clientOwner: string;
+  sharedProjects: string;
+  sharedProjectsHelp: string;
   amountMinor: string;
   interval: string;
   month: string;
@@ -32,15 +37,24 @@ type Labels = {
   periodStart: string;
   periodEnd: string;
   description: string;
+  allocationMethod: string;
+  equal: string;
+  manualAllocation: string;
+  allocationBps: string;
+  updateAllocation: string;
 };
 
 export function BillingForms({
   locale,
   accounts,
+  clients,
+  projects,
   labels,
 }: {
   locale: string;
-  accounts: Array<{ id: string; name: string }>;
+  accounts: Array<{ id: string; name: string; allocations?: Array<{ projectId: string; allocationBps: number }> }>;
+  clients: Array<{ id: string; name: string }>;
+  projects: Array<{ id: string; name: string }>;
   labels: Labels;
 }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -53,6 +67,10 @@ export function BillingForms({
           <div className="field"><label htmlFor="billing-name">{labels.name}</label><input id="billing-name" name="name" required /></div>
           <div className="field"><label htmlFor="billing-provider">{labels.provider}</label><select id="billing-provider" name="providerSlug">{providerOptions.map((slug) => <option value={slug} key={slug}>{slug}</option>)}</select></div>
           <div className="field"><label htmlFor="billing-owner">{labels.owner}</label><select id="billing-owner" name="ownerType"><option value="workspace">{labels.workspace}</option><option value="client">{labels.client}</option><option value="shared">{labels.shared}</option></select></div>
+          <div className="field"><label htmlFor="billing-client">{labels.clientOwner}</label><select id="billing-client" name="clientId"><option value="">—</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select></div>
+          <div className="field"><label htmlFor="billing-projects">{labels.sharedProjects}</label><select id="billing-projects" name="projectIds" multiple size={Math.min(Math.max(projects.length, 2), 6)}>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select><small>{labels.sharedProjectsHelp}</small></div>
+          <div className="field"><label htmlFor="billing-allocation-method">{labels.allocationMethod}</label><select id="billing-allocation-method" name="allocationMethod"><option value="equal">{labels.equal}</option><option value="manual">{labels.manualAllocation}</option></select></div>
+          {projects.map((project) => <div className="field" key={project.id}><label htmlFor={`billing-allocation-${project.id}`}>{project.name} · {labels.allocationBps}</label><input id={`billing-allocation-${project.id}`} name={`allocationBps:${project.id}`} type="number" min="0" max="10000" defaultValue="0" /></div>)}
           <div className="field"><label htmlFor="billing-amount">{labels.amountMinor}</label><input id="billing-amount" name="amountMinor" type="number" min="0" required /></div>
           <div className="field"><label htmlFor="billing-interval">{labels.interval}</label><select id="billing-interval" name="billingInterval"><option value="month">{labels.month}</option><option value="year">{labels.year}</option></select></div>
           <button className="button button-primary" type="submit">{labels.newAccount}</button>
@@ -75,6 +93,20 @@ export function BillingForms({
           </form>
         </details>
       ) : null}
+      {accounts.length > 0 ? <details className="panel">
+        <summary className="panel-head"><h2>{labels.updateAllocation}</h2></summary>
+        <div className="panel-body">{accounts.map((account) => <form action={updateBillingAccountAllocation} className="form-card" key={account.id}>
+          <input type="hidden" name="locale" value={locale} />
+          <input type="hidden" name="billingAccountId" value={account.id} />
+          <strong>{account.name}</strong>
+          <div className="field"><label htmlFor={`allocation-method-${account.id}`}>{labels.allocationMethod}</label><select id={`allocation-method-${account.id}`} name="allocationMethod"><option value="equal">{labels.equal}</option><option value="manual">{labels.manualAllocation}</option></select></div>
+          {projects.map((project) => {
+            const allocation = account.allocations?.find((item) => item.projectId === project.id);
+            return <div className="field" key={project.id}><label><span><input name="projectIds" type="checkbox" value={project.id} defaultChecked={Boolean(allocation)} /> {project.name}</span></label><input aria-label={`${project.name} ${labels.allocationBps}`} name={`allocationBps:${project.id}`} type="number" min="0" max="10000" defaultValue={allocation?.allocationBps ?? 0} /></div>;
+          })}
+          <button className="button button-primary" type="submit">{labels.updateAllocation}</button>
+        </form>)}</div>
+      </details> : null}
     </div>
   );
 }

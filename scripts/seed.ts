@@ -1,12 +1,12 @@
 import "dotenv/config";
 import { eq } from "drizzle-orm";
 import { alerts, authMembers, authOrganizations, authUsers, billingAccountProjects, billingAccounts, clients, costEntries, projectIntegrations, projects, providers, repositories, subscriptions, workspaceProfiles } from "../src/db/schema";
-import { requireDb } from "../src/db";
+import { requireServiceDb } from "../src/db";
 import { providerCatalog } from "../src/server/providers/catalog";
 
 const ids={workspace:"00000000-0000-4000-8000-000000000001",internal:"00000000-0000-4000-8000-000000000011",parigo:"00000000-0000-4000-8000-000000000012",demo:"00000000-0000-4000-8000-000000000013",spend:"00000000-0000-4000-8000-000000000021",parigoWeb:"00000000-0000-4000-8000-000000000022",jobio:"00000000-0000-4000-8000-000000000023"};
 
-async function main(){const db=requireDb();await db.transaction(async(tx)=>{
+async function main(){const db=requireServiceDb();await db.transaction(async(tx)=>{
   await tx.insert(authUsers).values({id:"seed-owner",name:"Yoann",email:"owner@example.invalid",emailVerified:true,githubId:"seed"}).onConflictDoNothing();
   await tx.insert(authOrganizations).values({id:"seed-yodev",name:"YoDev",slug:"yodev-seed"}).onConflictDoNothing();
   await tx.insert(authMembers).values({id:"seed-membership",organizationId:"seed-yodev",userId:"seed-owner",role:"owner"}).onConflictDoNothing();

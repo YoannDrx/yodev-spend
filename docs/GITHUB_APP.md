@@ -14,13 +14,19 @@ Spend uses a GitHub OAuth App for human login and a separate GitHub App for repo
 
 - Homepage: `https://spend.yodev.fr`
 - Setup URL: `https://spend.yodev.fr/api/github/install/callback`
+- User authorization callback URL: `https://spend.yodev.fr/api/github/install/callback`
 - Webhook URL: `https://spend.yodev.fr/api/github/webhooks`
 - Webhook secret: a new random value stored as `GITHUB_APP_WEBHOOK_SECRET`.
 - Repository permissions: **Metadata read** and **Contents read** only.
 - Subscribe to installation and installation repository changes; no push event is required.
 - Allow users to choose only selected repositories.
+- Keep **Request user authorization (OAuth) during installation** disabled. Spend starts the GitHub App user-authorization flow itself after the setup redirect so it can bind state, PKCE and the selected installation deterministically.
 
-Set `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, and the PEM private key in `GITHUB_APP_PRIVATE_KEY`. Multiline PEM values may use escaped `\n`. Never expose these as `NEXT_PUBLIC_*` variables.
+Set `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, and the PEM private key in `GITHUB_APP_PRIVATE_KEY`. Multiline PEM values may use escaped `\n`. The GitHub App client is distinct from `GITHUB_OAUTH_CLIENT_ID`, which authenticates humans through Better Auth. Never expose any of these as `NEXT_PUBLIC_*` variables.
+
+The Connect action first creates a ten-minute, single-use state bound to the authenticated user and workspace. After GitHub returns an installation candidate, Spend starts an S256 PKCE user-authorization flow and verifies the candidate with the ephemeral GitHub App user token. Only then is canonical installation metadata stored. The state and PKCE verifier are hashed/encrypted at rest; the user token is used in memory and never persisted.
+
+GitHub explicitly warns that `installation_id` on the setup URL is spoofable. Never replace this flow with a direct insert from callback parameters.
 
 Install the App through Settings, select repositories, return to Spend, assign each repository to an existing project, and import. Tokens are generated at scan time and expire without database persistence.
 

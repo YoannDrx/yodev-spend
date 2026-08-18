@@ -16,7 +16,7 @@ Deliver a private, bilingual, SaaS-ready application at `spend.yodev.fr` that co
 - [x] M7 manual billing accounts, subscriptions, cost entries, money/allocation calculations.
 - [x] M8 dashboard, provider inventory, project and service detail surfaces.
 - [x] M9 idempotent alerts, manual scan service and secure bounded daily cron.
-- [ ] M10 production activation. Neon and Vercel are provisioned; real GitHub credentials and DNS authorization remain operator gates.
+- [x] M10 production activation. Neon, Vercel, GitHub OAuth/App, OVH DNS, SSL and the daily scan cron are active at `spend.yodev.fr`.
 
 ## Decisions
 
@@ -24,8 +24,8 @@ Deliver a private, bilingual, SaaS-ready application at `spend.yodev.fr` that co
 - GitHub OAuth authenticates humans; a separate GitHub App scans selected repositories.
 - Source content exists only in memory. Persisted evidence contains a signal name and file path, never a secret value.
 - `partial` results can add positive evidence but cannot advance absence/stale state.
-- Currency conversion is intentionally absent. EUR aggregates exclude other currencies.
-- Production infrastructure changes require the operator's authenticated Neon, Vercel, DNS and GitHub accounts.
+- V1 ledger rows remain immutable in their original currencies. FinOps V2 now derives EUR reporting totals from dated ECB rates and exposes the rate date/source; rows without an eligible rate remain excluded and visible.
+- Production infrastructure is active. External financial connectors remain read-only and require explicitly scoped credentials.
 
 ## Verification record
 
@@ -37,5 +37,8 @@ Completed 2026-08-12:
 - `npm audit --audit-level=high`: zero vulnerabilities.
 - A disposable empty PostgreSQL database was migrated and seeded successfully.
 - Neon project `billowing-recipe-36985615`: production and staging each expose 24 public tables and 29 catalog providers.
-- Vercel project `yodev-spend` is linked and has isolated production/preview database, auth and cron secrets. GitHub OAuth/App secrets are deliberately absent until the two apps are created.
-- `spend.yodev.fr` cannot yet be attached from the current Vercel team because `yodev.fr` is controlled elsewhere; DNS/domain authorization is required before activation.
+- Vercel project `yodev-spend` is linked and has isolated production/preview database, auth and cron secrets. The production GitHub OAuth App and read-only GitHub App are configured separately.
+- GitHub OAuth and the read-only GitHub App are configured; repository import and a production scan succeeded.
+- `spend.yodev.fr` is attached through OVH DNS and serves production with a valid certificate.
+
+FinOps V2 work continues in `.agent/exec-plans/spend-finops-v2.md`. The private V1 completion record does not mean the commercial SaaS is production-ready; remediation and commercial release gates are tracked in `.agent/exec-plans/spend-commercial-readiness.md`.

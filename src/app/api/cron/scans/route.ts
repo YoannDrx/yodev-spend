@@ -1,6 +1,6 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { repositories } from "@/db/schema";
-import { requireDb } from "@/db";
+import { requireServiceDb } from "@/db";
 import { env } from "@/lib/env";
 import { logEvent } from "@/server/logging";
 import { runRepositoryScan } from "@/server/scanner/run";
@@ -16,11 +16,11 @@ export async function GET(request: Request) {
   if (env.CRON_ENABLED !== "true") return new Response(null, { status: 204 });
 
   const started = Date.now();
-  const batch = await requireDb()
+  const batch = await requireServiceDb()
     .select({ id: repositories.id, workspaceId: repositories.workspaceId })
     .from(repositories)
     .where(and(eq(repositories.scanEnabled, true), isNull(repositories.archivedAt)))
-    .orderBy(asc(repositories.lastSuccessfulScanAt))
+    .orderBy(asc(sql`coalesce(${repositories.lastScanAttemptAt}, ${repositories.lastSuccessfulScanAt}, ${repositories.createdAt})`))
     .limit(10);
   logEvent("cron_batch_started", { batchSize: batch.length });
 

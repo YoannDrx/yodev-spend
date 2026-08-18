@@ -11,6 +11,34 @@ function app() {
   return new App({ appId: env.GITHUB_APP_ID, privateKey: env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, "\n") });
 }
 
+export type VerifiedGitHubInstallation = {
+  installationId: number;
+  accountLogin: string;
+  accountType: string;
+  repositorySelection: string;
+  permissions: Record<string, string>;
+  suspended: boolean;
+};
+
+export async function getGitHubAppInstallation(installationId: number): Promise<VerifiedGitHubInstallation> {
+  const { data } = await app().octokit.rest.apps.getInstallation({ installation_id: installationId });
+  if (!data.account || !("login" in data.account) || !data.account.login) {
+    throw new Error("GitHub installation account metadata is unavailable.");
+  }
+  const permissions: Record<string, string> = {};
+  for (const [name, access] of Object.entries(data.permissions)) {
+    if (typeof access === "string") permissions[name] = access;
+  }
+  return {
+    installationId: data.id,
+    accountLogin: data.account.login,
+    accountType: "type" in data.account && data.account.type ? data.account.type : data.target_type,
+    repositorySelection: data.repository_selection,
+    permissions,
+    suspended: Boolean(data.suspended_at),
+  };
+}
+
 export async function configureGitHubAppWebhook() {
   if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY || !env.GITHUB_APP_WEBHOOK_SECRET) throw new Error("GitHub App webhook configuration is incomplete.");
   const auth = createAppAuth({ appId: env.GITHUB_APP_ID, privateKey: env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, "\n") });
@@ -38,8 +66,12 @@ export class GitHubRepositoryAdapter implements RepositorySourceAdapter {
   private async octokit() { return app().getInstallationOctokit(this.installationId); }
   async listRepositories(): Promise<ExternalRepository[]> {
     const octokit = await this.octokit();
-    const response = await octokit.rest.apps.listReposAccessibleToInstallation({ per_page: 100 });
-    return response.data.repositories.map((repo) => ({ externalId: repo.id, owner: repo.owner.login, name: repo.name, fullName: repo.full_name, defaultBranch: repo.default_branch, htmlUrl: repo.html_url, isPrivate: repo.private }));
+    const repositories = await octokit.paginate(
+      octokit.rest.apps.listReposAccessibleToInstallation,
+      { per_page: 100 },
+      (response) => response.data,
+    );
+    return repositories.map((repo) => ({ externalId: repo.id, owner: repo.owner.login, name: repo.name, fullName: repo.full_name, defaultBranch: repo.default_branch, htmlUrl: repo.html_url, isPrivate: repo.private }));
   }
   async getDefaultBranchSha(repository: RepositoryRef) {
     const octokit = await this.octokit();
