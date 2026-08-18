@@ -1,13 +1,44 @@
 import type { InferInsertModel } from "drizzle-orm";
 import type { providers } from "@/db/schema";
 
-type ProviderSeed = Pick<InferInsertModel<typeof providers>, "slug"|"name"|"category"|"websiteUrl">;
+type ProviderSeed = Pick<InferInsertModel<typeof providers>, "slug"|"name"|"category"|"websiteUrl"|"discoverySupported"|"billingSupported">;
 
-export const providerCatalog: ProviderSeed[] = [
+const detectedProviders: Array<[string, string, ProviderSeed["category"], string]> = [
   ["vercel","Vercel","hosting","https://vercel.com"],["aws","AWS","cloud","https://aws.amazon.com"],["cloudflare","Cloudflare","cloud","https://cloudflare.com"],["github","GitHub","developer_tool","https://github.com"],
   ["resend","Resend","email","https://resend.com"],["sendgrid","SendGrid","email","https://sendgrid.com"],["mailgun","Mailgun","email","https://mailgun.com"],["postmark","Postmark","email","https://postmarkapp.com"],
   ["supabase","Supabase","database","https://supabase.com"],["firebase","Firebase","database","https://firebase.google.com"],["neon","Neon","database","https://neon.tech"],["mongodb-atlas","MongoDB Atlas","database","https://mongodb.com/atlas"],["upstash","Upstash","database","https://upstash.com"],
   ["railway","Railway","hosting","https://railway.com"],["render","Render","hosting","https://render.com"],["netlify","Netlify","hosting","https://netlify.com"],["fly-io","Fly.io","hosting","https://fly.io"],
   ["openai","OpenAI","ai","https://openai.com"],["anthropic","Anthropic","ai","https://anthropic.com"],["sentry","Sentry","observability","https://sentry.io"],["posthog","PostHog","analytics","https://posthog.com"],
-  ["stripe","Stripe","payments","https://stripe.com"],["twilio","Twilio","messaging","https://twilio.com"],["mapbox","Mapbox","maps","https://mapbox.com"],["clerk","Clerk","authentication","https://clerk.com"],["auth0","Auth0","authentication","https://auth0.com"],["algolia","Algolia","developer_tool","https://algolia.com"],["sanity","Sanity","cms","https://sanity.io"],["contentful","Contentful","cms","https://contentful.com"]]
-  .map(([slug,name,category,websiteUrl])=>({slug,name,category:category as ProviderSeed["category"],websiteUrl}));
+  ["stripe","Stripe","payments","https://stripe.com"],["twilio","Twilio","messaging","https://twilio.com"],["mapbox","Mapbox","maps","https://mapbox.com"],["clerk","Clerk","authentication","https://clerk.com"],["auth0","Auth0","authentication","https://auth0.com"],["algolia","Algolia","developer_tool","https://algolia.com"],["sanity","Sanity","cms","https://sanity.io"],["contentful","Contentful","cms","https://contentful.com"],
+];
+
+const expenseOnlyProviders: Array<[string, string, ProviderSeed["category"], string]> = [
+  ["apple-developer", "Apple Developer Program", "developer_tool", "https://developer.apple.com/programs/"],
+  ["ovhcloud", "OVHcloud", "cloud", "https://www.ovhcloud.com"],
+  ["google-cloud", "Google Cloud", "cloud", "https://cloud.google.com"],
+  ["digitalocean", "DigitalOcean", "cloud", "https://digitalocean.com"],
+  ["figma", "Figma", "developer_tool", "https://figma.com"],
+  ["jetbrains", "JetBrains", "developer_tool", "https://jetbrains.com"],
+  ["adobe", "Adobe", "developer_tool", "https://adobe.com"],
+  ["notion", "Notion", "developer_tool", "https://notion.so"],
+  ["linear", "Linear", "developer_tool", "https://linear.app"],
+];
+
+export const providerCatalog: ProviderSeed[] = [
+  ...detectedProviders.map(([slug, name, category, websiteUrl]) => ({
+    slug,
+    name,
+    category,
+    websiteUrl,
+    discoverySupported: true,
+    billingSupported: ["vercel", "openai", "github", "aws"].includes(slug),
+  })),
+  ...expenseOnlyProviders.map(([slug, name, category, websiteUrl]) => ({
+    slug,
+    name,
+    category,
+    websiteUrl,
+    discoverySupported: false,
+    billingSupported: false,
+  })),
+];

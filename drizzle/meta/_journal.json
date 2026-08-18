@@ -15,6 +15,76 @@
       "when": 1786567130474,
       "tag": "0001_zippy_mongu",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786620354135,
+      "tag": "0002_redundant_rocket_racer",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786628255128,
+      "tag": "0003_loose_wolfpack",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786629246266,
+      "tag": "0004_sour_king_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786629591747,
+      "tag": "0005_workspace_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786901036959,
+      "tag": "0006_funny_black_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786902109737,
+      "tag": "0007_kind_blockbuster",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786980913988,
+      "tag": "0008_even_captain_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786981492757,
+      "tag": "0009_wet_jackal",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786981996468,
+      "tag": "0010_violet_swarm",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787050220373,
+      "tag": "0011_bored_nitro",
+      "breakpoints": true
     }
   ]
 }

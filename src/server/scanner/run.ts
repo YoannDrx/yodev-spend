@@ -1,8 +1,8 @@
 import "server-only";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { alerts, detectionEvidence, githubInstallations, integrationEvents, projectIntegrations, providers, repositories, repositoryProviderObservations, scanRuns } from "@/db/schema";
-import { requireDb } from "@/db";
+import { requireServiceDb } from "@/db";
 import { alertDedupeKey } from "@/server/alerts/rules";
 import { GitHubRepositoryAdapter } from "@/server/github/adapter";
 import { DeterministicRepositoryScanner, evidenceSignature, safeErrorMessage, type ScanMode } from "@/server/scanner";
@@ -11,13 +11,13 @@ import { logEvent } from "@/server/logging";
 
 export async function runRepositoryScan({workspaceId,repositoryId,mode="quick",trigger="manual",force=false,idempotencyKey}:{workspaceId:string;repositoryId:string;mode?:ScanMode;trigger?:"manual"|"scheduled"|"initial";force?:boolean;idempotencyKey?:string}) {
   logEvent("scan_started",{workspaceId,repositoryId,mode,trigger});
-  const db=requireDb();
-  const [repository]=await db.select({repository:repositories,installation:githubInstallations}).from(repositories).innerJoin(githubInstallations,eq(githubInstallations.id,repositories.githubInstallationId)).where(and(eq(repositories.id,repositoryId),eq(repositories.workspaceId,workspaceId),eq(repositories.scanEnabled,true))).limit(1);
+  const db=requireServiceDb();
+  const [repository]=await db.select({repository:repositories,installation:githubInstallations}).from(repositories).innerJoin(githubInstallations,eq(githubInstallations.id,repositories.githubInstallationId)).where(and(eq(repositories.id,repositoryId),eq(repositories.workspaceId,workspaceId),eq(repositories.scanEnabled,true),eq(githubInstallations.status,"active"),isNotNull(githubInstallations.verifiedAt))).limit(1);
   if(!repository) throw new Error("Repository not found, disabled, or disconnected.");
   const adapter=new GitHubRepositoryAdapter(repository.installation.installationId);
   const ref={owner:repository.repository.owner,name:repository.repository.name,defaultBranch:repository.repository.defaultBranch};
   const commitSha=await adapter.getDefaultBranchSha(ref);
-  if(!force&&repository.repository.lastScannedCommitSha===commitSha){const [skipped]=await db.insert(scanRuns).values({workspaceId,repositoryId,type:mode,trigger,status:"skipped",commitSha,idempotencyKey,fingerprintVersion:FINGERPRINT_VERSION,completedAt:new Date(),warnings:["unchanged_commit"]}).returning();logEvent("repository_skipped",{workspaceId,repositoryId,reason:"unchanged_commit"});return skipped;}
+  if(!force&&repository.repository.lastScannedCommitSha===commitSha){const now=new Date();const [skipped]=await db.transaction(async(tx)=>{const rows=await tx.insert(scanRuns).values({workspaceId,repositoryId,type:mode,trigger,status:"skipped",commitSha,idempotencyKey,fingerprintVersion:FINGERPRINT_VERSION,completedAt:now,warnings:["unchanged_commit"]}).returning();await tx.update(repositories).set({lastKnownCommitSha:commitSha,lastScanAttemptAt:now,updatedAt:now}).where(and(eq(repositories.id,repositoryId),eq(repositories.workspaceId,workspaceId)));await tx.update(alerts).set({status:"resolved",resolvedAt:now,updatedAt:now}).where(and(eq(alerts.workspaceId,workspaceId),eq(alerts.status,"open"),eq(alerts.dedupeKey,alertDedupeKey("SCAN_FAILED",[repositoryId]))));return rows;});logEvent("repository_skipped",{workspaceId,repositoryId,reason:"unchanged_commit"});return skipped;}
   let scanRunId:string;
   try{const [run]=await db.insert(scanRuns).values({workspaceId,repositoryId,type:mode,trigger,status:"running",commitSha,idempotencyKey,fingerprintVersion:FINGERPRINT_VERSION,startedAt:new Date()}).returning({id:scanRuns.id});scanRunId=run.id;}catch{throw new Error("A scan is already running for this repository.");}
   try{
@@ -37,6 +37,7 @@ export async function runRepositoryScan({workspaceId,repositoryId,mode="quick",t
       }
       await tx.update(scanRuns).set({status:result.partial?"partial":"success",completedAt:now,filesInspected:result.filesInspected,bytesInspected:result.bytesInspected,evidenceCount:detected.reduce((sum,item)=>sum+item.evidence.length,0),warnings:result.warnings,updatedAt:now}).where(eq(scanRuns.id,scanRunId));
       await tx.update(repositories).set({lastKnownCommitSha:commitSha,lastScannedCommitSha:result.partial?repository.repository.lastScannedCommitSha:commitSha,lastSuccessfulScanAt:result.partial?repository.repository.lastSuccessfulScanAt:now,lastScanAttemptAt:now,updatedAt:now}).where(eq(repositories.id,repositoryId));
+      if(!result.partial)await tx.update(alerts).set({status:"resolved",resolvedAt:now,updatedAt:now}).where(and(eq(alerts.workspaceId,workspaceId),eq(alerts.status,"open"),eq(alerts.dedupeKey,alertDedupeKey("SCAN_FAILED",[repositoryId]))));
     });
     logEvent("scan_completed",{workspaceId,repositoryId,scanRunId,status:result.partial?"partial":"success",filesInspected:result.filesInspected,bytesInspected:result.bytesInspected,evidenceCount:detected.reduce((sum,item)=>sum+item.evidence.length,0)});return {id:scanRunId,status:result.partial?"partial":"success",detections:detected.length};
   }catch(error){const now=new Date();const message=safeErrorMessage(error);await db.transaction(async(tx)=>{await tx.update(scanRuns).set({status:"failed",completedAt:now,errorCode:"SCAN_FAILED",errorMessage:message,updatedAt:now}).where(eq(scanRuns.id,scanRunId));await tx.update(repositories).set({lastScanAttemptAt:now,updatedAt:now}).where(eq(repositories.id,repositoryId));await tx.insert(alerts).values({workspaceId,type:"SCAN_FAILED",severity:"warning",dedupeKey:alertDedupeKey("SCAN_FAILED",[repositoryId]),title:`Scan failed: ${repository.repository.fullName}`,description:message}).onConflictDoNothing();});logEvent("scan_failed",{workspaceId,repositoryId,scanRunId,errorCode:"SCAN_FAILED"});throw error;}

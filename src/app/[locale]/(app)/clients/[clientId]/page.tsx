@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Link } from "@/i18n/navigation";
-import { archiveClient } from "@/server/actions/portfolio";
+import { archiveClient, restoreClient, updateClient } from "@/server/actions/portfolio";
 import { requireWorkspaceContext } from "@/server/auth/context";
 import { getClientDetail } from "@/server/dashboard/queries";
 
@@ -27,11 +27,12 @@ export default async function ClientDetailPage({
       <input type="hidden" name="clientId" value={clientId} />
       <button className="button" type="submit"><Archive size={13} />{t("archive")}</button>
     </form>
-  ) : <StatusBadge status="archived" />;
+  ) : <form action={restoreClient}><input type="hidden" name="locale" value={locale}/><input type="hidden" name="clientId" value={clientId}/><button className="button" type="submit">{t("restore")}</button></form>;
 
   return (
     <>
       <PageHeader title={data.client.name} subtitle={data.client.description ?? t("subtitle")} action={action} />
+      <details className="panel" style={{ marginBottom: 16 }}><summary className="panel-head"><h2>{t("edit")}</h2></summary><form action={updateClient} className="form-card"><input type="hidden" name="locale" value={locale}/><input type="hidden" name="clientId" value={clientId}/><label className="field"><span>{t("name")}</span><input name="name" defaultValue={data.client.name} required/></label><label className="field"><span>{t("description")}</span><textarea name="description" defaultValue={data.client.description??""}/></label><button className="button button-primary" type="submit">{t("save")}</button></form></details>
       <section className="panel">
         <div className="panel-head"><h2>{t("projects")}</h2></div>
         <div className="panel-body">

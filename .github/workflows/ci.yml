@@ -6,17 +6,46 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: spend_test
+          POSTGRES_USER: spend
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U spend -d spend_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://spend_app@127.0.0.1:5432/spend_test
+      DATABASE_URL_UNPOOLED: postgresql://spend_migration@127.0.0.1:5432/spend_test
+      DATABASE_ADMIN_URL: postgresql://spend@127.0.0.1:5432/spend_test
+      DATABASE_APP_URL: postgresql://spend_app@127.0.0.1:5432/spend_test
+      DATABASE_SERVICE_URL: postgresql://spend_service@127.0.0.1:5432/spend_test
+      DATABASE_MIGRATION_URL: postgresql://spend_migration@127.0.0.1:5432/spend_test
+      TEST_DATABASE_URL: postgresql://spend@127.0.0.1:5432/spend_test
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - name: Generate ephemeral database role passwords
+        run: |
+          echo "SPEND_APP_DB_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "SPEND_SERVICE_DB_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "SPEND_MIGRATION_DB_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+      - run: npm run db:provision-roles
+      - run: npm run db:migrate
+      - run: npm run db:provision-roles
+      - run: npm run db:bootstrap
+      - run: npm run db:seed
       - run: npm run check
-        env:
-          AUTH_TEST_MODE: "true"
-          NEXT_PUBLIC_APP_URL: http://localhost:3000
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
         env:
           AUTH_TEST_MODE: "true"
-          NEXT_PUBLIC_APP_URL: http://localhost:3000

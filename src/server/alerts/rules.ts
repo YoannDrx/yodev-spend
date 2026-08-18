@@ -9,3 +9,7 @@ export function potentialWaste(candidates: WasteCandidate[]) {
 export function alertDedupeKey(type: string, parts: Array<string | number | null | undefined>) {
   return [type, ...parts.filter((part) => part !== null && part !== undefined)].join(":");
 }
+
+export function isRenewalSoon(renewalDate: Date | null, now: Date, windowDays = 30) {
+  return Boolean(renewalDate && renewalDate > now && renewalDate <= new Date(now.getTime() + windowDays * 86_400_000));
+}
