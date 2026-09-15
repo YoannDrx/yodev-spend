@@ -42,3 +42,27 @@ Completed 2026-08-12:
 - `spend.yodev.fr` is attached through OVH DNS and serves production with a valid certificate.
 
 FinOps V2 work continues in `.agent/exec-plans/spend-finops-v2.md`. The private V1 completion record does not mean the commercial SaaS is production-ready; remediation and commercial release gates are tracked in `.agent/exec-plans/spend-commercial-readiness.md`.
+
+## Production-readiness audit — 2026-09-06
+
+The deployment now includes the commercial foundation from `2e5fa64`, confirmed through Vercel; it runs in `iad1`. The historical private-V1 completion does not certify commercial readiness. The current audit, feature matrix, fixes and release conditions are in `docs/PRODUCTION_AUDIT_2026-09-06.md`.
+
+This remediation adds exact currency input/display, invoice conflict/precedence protection, strict production runtime roles, a read-only DB security gate, collaborator invitation admission, canonical GitHub import and revocation handling, Stripe Portal plan reconciliation, a safe business export and usable portfolio/ledger/navigation states. It uses real PostgreSQL for E2E instead of implicit demo responses. Deployment, real OAuth/provider/payment acceptance, deletion lifecycle and legal/operational validation remain open.
+
+Validation finale de ce lot : lint, frontières DB, 465 clés FR/EN, TypeScript, 122 tests (39 fichiers, aucun ignoré), build de production, sécurité des deux rôles runtime sur 30 tables tenant, 15 tests Playwright et audit npm sans vulnérabilité passent. La promotion et les gates commerciaux externes restent ouverts ; voir docs/PRODUCTION_AUDIT_2026-09-06.md.
+
+## Four priority workstreams — 2026-09-07
+
+The follow-up adds an immutable financial correction service/UI, a 30-day owner-requested erasure lifecycle, shared mutation/exclusive worker lifecycle locks, stale-worker recovery and bounded connector retries. Migration 0012 adds a narrowly scoped service erasure policy for audit PII; ordinary audit operations remain append-only. Late Stripe/GitHub events must not reactivate a deleted or terminated workspace.
+
+Staging preflight and a separate Better Auth browser suite distinguish real session validation from OAuth consent. Provider credentials downloaded from Vercel are masked; Preview also lacks separate runtime DB roles, Stripe sandbox, Google OAuth and Resend configuration. Real provider/payment/invitation acceptance therefore remains open.
+
+A real Neon snapshot was restored and 46 tables matched, but implicit finalization temporarily moved the production endpoint. Original branch/name/default/endpoint were restored and public HTTP health checked. Record the incident and explicit `finalize:false` requirement in the restoration report. Do not represent the drill as fully isolated or as proof of continuous availability. Production code has not been promoted.
+
+Five FR/EN legal drafts, configurable publisher identity and support, document version approval and a live Checkout gate are implemented. The legal identity, chosen Stripe account/sandbox, test identities, vendor contracts, retention and legal/tax review still require owner inputs. See the staging acceptance and commercial legal dossier for concrete remaining inputs.
+
+Validation finale du lot : `npm run check` passe (lint, frontières DB, 502 clés FR/EN, TypeScript, 134 tests sans skip et build de 55 pages). Les 18 scénarios navigateur et le contrôle des rôles DB passent également. Aucun déploiement applicatif n’a été effectué.
+
+## Identité Yodev — 15 septembre 2026
+
+La refonte adopte Yodev Spend, le symbole partagé, DM Sans/Fira Code et les tokens versionnés de `yodev/brand`. Thème sombre par défaut avec préférence locale conservée. Navigation regroupée et menu mobile complet, source manuelle du ledger explicitée. Les modifications locales de préparation commerciale et les règles financières sont conservées. Vérification de ce lot consignée dans le rapport de refonte Yodev.

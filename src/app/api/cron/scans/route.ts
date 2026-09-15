@@ -1,3 +1,4 @@
+import { recoverAbandonedRuns } from "@/server/operations/recovery";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { repositories } from "@/db/schema";
 import { requireServiceDb } from "@/db";
@@ -16,6 +17,7 @@ export async function GET(request: Request) {
   if (env.CRON_ENABLED !== "true") return new Response(null, { status: 204 });
 
   const started = Date.now();
+  await recoverAbandonedRuns();
   const batch = await requireServiceDb()
     .select({ id: repositories.id, workspaceId: repositories.workspaceId })
     .from(repositories)

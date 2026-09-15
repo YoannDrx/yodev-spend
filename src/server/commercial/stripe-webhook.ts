@@ -5,12 +5,15 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import Stripe from "stripe";
 import { z } from "zod";
 import {
+  dataDeletionJobs,
   commercialWebhookEvents,
   betaInvitations,
   workspaceProfiles,
   workspaceSubscriptions,
 } from "@/db/schema";
 import { requireServiceDb } from "@/db";
+import { lockWorkspaceLifecycle } from "@/server/operations/workspace-lock";
+import { revokeWorkspaceConnections } from "@/server/privacy/deletion";
 import { recordAuditEvent } from "@/server/audit";
 import { evaluateWorkspaceQuotas } from "./quotas";
 import { findCommercialSelectionForPrice, getStripe } from "./stripe";
@@ -46,21 +49,26 @@ async function synchronizeSubscription(subscription: Stripe.Subscription, eventC
   if (!firstItem) throw new Error("STRIPE_SUBSCRIPTION_WITHOUT_ITEM");
   const priceId = firstItem.price.id;
   const priceSelection = findCommercialSelectionForPrice(priceId);
-  if (!priceSelection || priceSelection.code !== metadata.planCode || priceSelection.interval !== metadata.billingInterval) {
+  if (!priceSelection) {
     throw new Error("STRIPE_PRICE_METADATA_MISMATCH");
   }
   const customerId = objectId(subscription.customer);
   if (!customerId) throw new Error("STRIPE_SUBSCRIPTION_WITHOUT_CUSTOMER");
   const db = requireServiceDb();
-  const plan = await getActiveCommercialPlan(metadata.planCode, db);
+  const plan = await getActiveCommercialPlan(priceSelection.code, db);
   const localStatus = mapStripeSubscriptionStatus(subscription.status);
   const now = new Date();
 
   await db.transaction(async (tx) => {
+    await lockWorkspaceLifecycle(tx,metadata.workspaceId);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`spend-stripe:${metadata.workspaceId}`}))`);
     const [existing] = await tx.select({
+      workspaceId: workspaceSubscriptions.workspaceId,
+      stripeCustomerId: workspaceSubscriptions.stripeCustomerId,
       lastStripeEventCreatedAt: workspaceSubscriptions.lastStripeEventCreatedAt,
       paymentGraceEndsAt: workspaceSubscriptions.paymentGraceEndsAt,
     }).from(workspaceSubscriptions).where(eq(workspaceSubscriptions.stripeSubscriptionId, subscription.id)).limit(1);
+    if (existing && (existing.workspaceId !== metadata.workspaceId || existing.stripeCustomerId !== customerId)) throw new Error("STRIPE_SUBSCRIPTION_BINDING_MISMATCH");
     if (!shouldApplyStripeEvent(existing?.lastStripeEventCreatedAt, eventCreatedAt)) return;
     const paymentGraceEndsAt = paymentGraceForStatus(localStatus, existing?.paymentGraceEndsAt, now);
     await tx.insert(workspaceSubscriptions).values({
@@ -70,7 +78,7 @@ async function synchronizeSubscription(subscription: Stripe.Subscription, eventC
       stripeSubscriptionId: subscription.id,
       stripePriceId: priceId,
       status: localStatus,
-      billingInterval: metadata.billingInterval,
+      billingInterval: priceSelection.interval,
       trialEndsAt: toDate(subscription.trial_end),
       currentPeriodStartsAt: toDate(firstItem.current_period_start),
       currentPeriodEndsAt: toDate(firstItem.current_period_end),
@@ -86,7 +94,7 @@ async function synchronizeSubscription(subscription: Stripe.Subscription, eventC
         stripeCustomerId: customerId,
         stripePriceId: priceId,
         status: localStatus,
-        billingInterval: metadata.billingInterval,
+        billingInterval: priceSelection.interval,
         trialEndsAt: toDate(subscription.trial_end),
         currentPeriodStartsAt: toDate(firstItem.current_period_start),
         currentPeriodEndsAt: toDate(firstItem.current_period_end),
@@ -98,12 +106,14 @@ async function synchronizeSubscription(subscription: Stripe.Subscription, eventC
         updatedAt: now,
       },
     });
+    const [deletion]=await tx.select({id:dataDeletionJobs.id}).from(dataDeletionJobs).where(and(eq(dataDeletionJobs.workspaceId,metadata.workspaceId),inArray(dataDeletionJobs.status,["scheduled","export_window","purging","failed","completed"])));
+    if(localStatus==="cancelled")await revokeWorkspaceConnections(tx,metadata.workspaceId,now);
     await tx.update(workspaceProfiles).set({
-      commercialStatus: workspaceStatusForSubscription(localStatus),
+      commercialStatus: deletion ? undefined : workspaceStatusForSubscription(localStatus),
       onboardingCompletedAt: ["trialing", "active"].includes(localStatus) ? now : undefined,
       updatedAt: now,
     }).where(eq(workspaceProfiles.id, metadata.workspaceId));
-    if (metadata.betaInvitationId && ["trialing", "active"].includes(localStatus)) {
+    if (!deletion && metadata.betaInvitationId && ["trialing", "active"].includes(localStatus)) {
       const [invitation] = await tx.select({ status: betaInvitations.status, workspaceId: betaInvitations.workspaceId })
         .from(betaInvitations).where(eq(betaInvitations.id, metadata.betaInvitationId)).limit(1).for("update");
       if (!invitation || invitation.workspaceId !== metadata.workspaceId || !["reserved", "consumed"].includes(invitation.status)) {
@@ -118,16 +128,16 @@ async function synchronizeSubscription(subscription: Stripe.Subscription, eventC
         }).where(eq(betaInvitations.id, metadata.betaInvitationId));
       }
     }
-    await recordAuditEvent({
+    if (!deletion) await recordAuditEvent({
       workspaceId: metadata.workspaceId,
       actorType: "system",
       action: "commercial.subscription_synchronized",
       targetType: "workspace_subscription",
       targetId: subscription.id,
-      metadata: { status: localStatus, planCode: metadata.planCode, billingInterval: metadata.billingInterval },
+      metadata: { status: localStatus, planCode: priceSelection.code, billingInterval: priceSelection.interval },
     }, tx);
+    if(!deletion)await evaluateWorkspaceQuotas(metadata.workspaceId, tx);
   });
-  await evaluateWorkspaceQuotas(metadata.workspaceId, db);
   return metadata.workspaceId;
 }
 

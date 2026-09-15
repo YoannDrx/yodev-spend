@@ -37,6 +37,7 @@ suite("signed Stripe commercial webhook lifecycle", () => {
   });
 
   afterAll(async () => {
+    await client.query("delete from data_deletion_jobs where workspace_id=$1", [workspaceId]);
     await client.query("delete from workspace_quota_states where workspace_id=$1", [workspaceId]);
     await client.query("delete from audit_events where workspace_id=$1", [workspaceId]);
     await client.query("delete from commercial_webhook_events where workspace_id=$1 or stripe_event_id like $2", [workspaceId, `evt_${workspaceId}%`]);
@@ -102,4 +103,30 @@ suite("signed Stripe commercial webhook lifecycle", () => {
     );
     expect(subscription.rows[0]).toMatchObject({ status: "active", last_stripe_event_created_at: 1_787_100_000 });
   });
+  it("applies a Portal price change even when initial Checkout metadata is unchanged", async () => {
+    const payload = JSON.parse(event(`evt_${workspaceId}_upgrade`, 1_787_200_000, "active"));
+    payload.data.object.items.data[0].price.id = process.env.STRIPE_STUDIO_ANNUAL_PRICE_ID;
+    await deliver(JSON.stringify(payload));
+    const result = await client.query("select p.code,s.billing_interval from workspace_subscriptions s join commercial_plans p on p.id=s.commercial_plan_id where s.workspace_id=$1",[workspaceId]);
+    expect(result.rows[0]).toMatchObject({code: "studio", billing_interval: "year"});
+  });
+  it("serializes concurrent deliveries so a late old event cannot undo a new status", async () => {
+    await Promise.all([
+      deliver(event(`evt_${workspaceId}_concurrent_new`, 1_787_400_000, "active")),
+      deliver(event(`evt_${workspaceId}_concurrent_old`, 1_787_300_000, "trialing")),
+    ]);
+    const result = await client.query("select status,last_stripe_event_created_at from workspace_subscriptions where workspace_id=$1",[workspaceId]);
+    expect(result.rows[0]).toMatchObject({status:"active",last_stripe_event_created_at:1_787_400_000});
+  });
+
+  it("does not resurrect a deleted workspace after a late paid event",async()=>{
+    await client.query("update workspace_profiles set commercial_status='cancelled' where id=$1",[workspaceId]);
+    await client.query("insert into data_deletion_jobs(workspace_id,status,export_available_until,purge_scheduled_at,completed_at) values($1,'completed',now(),now(),now())",[workspaceId]);
+    await client.query("delete from workspace_quota_states where workspace_id=$1",[workspaceId]);
+    await client.query("delete from beta_invitations where id=$1",[invitationId]);
+    await deliver(event(`evt_${workspaceId}_after_erasure`,1_787_500_000,"active"));
+    expect((await client.query("select commercial_status from workspace_profiles where id=$1",[workspaceId])).rows[0].commercial_status).toBe("cancelled");
+    expect((await client.query("select id from workspace_quota_states where workspace_id=$1",[workspaceId])).rowCount).toBe(0);
+  });
+
 });

@@ -1,9 +1,10 @@
 import "server-only";
 
+import { getLegalReadiness } from "./legal-readiness";
 import { randomBytes } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import Stripe from "stripe";
-import { betaInvitations, commercialPlans, workspaceBillingProfiles, workspaceSubscriptions } from "@/db/schema";
+import { betaInvitations, dataDeletionJobs, commercialPlans, workspaceBillingProfiles, workspaceSubscriptions } from "@/db/schema";
 import { requireServiceDb } from "@/db";
 import { env, requireStripeEnv } from "@/lib/env";
 import type { CommercialPlanCode } from "./plans";
@@ -56,7 +57,10 @@ export async function createCommercialCheckout(input: {
   locale: "fr" | "en";
   betaInvitationId?: string;
 }) {
+  if (/^(?:sk|rk)_live_/.test(env.STRIPE_RESTRICTED_KEY??"") && !getLegalReadiness(env).ready) throw new Error("LEGAL_APPROVAL_REQUIRED_BEFORE_LIVE_CHECKOUT");
   const db = requireServiceDb();
+  const [deletion]=await db.select({id:dataDeletionJobs.id}).from(dataDeletionJobs).where(and(eq(dataDeletionJobs.workspaceId,input.workspaceId),inArray(dataDeletionJobs.status,["scheduled","export_window","purging","failed","completed"])));
+  if(deletion)throw new Error("DELETION_MUST_BE_CANCELLED_BEFORE_CHECKOUT");
   const [[profile], [existingSubscription]] = await Promise.all([
     db.select().from(workspaceBillingProfiles).where(eq(workspaceBillingProfiles.workspaceId, input.workspaceId)).limit(1),
     db.select().from(workspaceSubscriptions).where(eq(workspaceSubscriptions.workspaceId, input.workspaceId))

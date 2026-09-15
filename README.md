@@ -2,7 +2,7 @@
 
 Spend inventories third-party services across software projects, explains how they were detected, connects them to manual billing, and highlights stack drift and potentially wasted recurring cost.
 
-The V1 is private to YoDev but all business data is workspace-scoped for later SaaS use. The UI is available under `/fr` and `/en`.
+The production currently includes the private YoDev workflows and a gated commercial foundation. Commercial availability depends on the release gates, not on the presence of a page or connector. See `docs/PRODUCTION_AUDIT_2026-09-06.md` for the current feature audit and outstanding gates. The UI is available under `/fr` and `/en`.
 
 ## Stack
 
@@ -25,7 +25,7 @@ npm run db:seed
 npm run dev
 ```
 
-Use a random Better Auth secret and configure a GitHub OAuth App for real login. For UI-only local work, set `AUTH_TEST_MODE=true`; that mode bypasses auth and serves safe demonstration data, and must never be enabled in production.
+Use a random Better Auth secret and configure a GitHub OAuth App for real login. For database-backed local E2E, set `AUTH_TEST_MODE=true`; this authenticates the seeded local owner and keeps real database reads/writes. For visual fixtures only, also set `DEMO_DATA_ENABLED=true`. Both flags must remain false in production. Runtime production access requires distinct `DATABASE_APP_URL` (`spend_app`) and `DATABASE_SERVICE_URL` (`spend_service`) credentials. Keep migration credentials in operator jobs only.
 
 ## Commands
 

@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
+import { validateRuntimeDatabaseConfiguration } from "./configuration";
 
 function createPool(connectionString: string) {
   const url = new URL(connectionString);
@@ -23,6 +24,7 @@ const applicationSlot = createSlot(process.env.DATABASE_APP_URL ?? process.env.D
 const serviceSlot = createSlot(process.env.DATABASE_SERVICE_URL ?? process.env.DATABASE_URL);
 
 function requireSlot(slot: DatabaseSlot, variableName: string) {
+  validateRuntimeDatabaseConfiguration(process.env);
   if (!slot.database && slot.connectionString) {
     slot.pool = createPool(slot.connectionString);
     slot.database = drizzle({ client: slot.pool, schema });

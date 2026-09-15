@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { optimizationFindings } from "@/db/schema";
 import { requireWorkspaceMutationContext } from "@/server/auth/context";
-import { withAuthorizedWorkspace } from "@/server/auth/workspace-transaction";
+import { withWorkspaceMutation } from "@/server/auth/workspace-transaction";
 
 export async function reviewOptimizationFindingAction(formData: FormData) {
   const input = z.object({
@@ -20,7 +20,7 @@ export async function reviewOptimizationFindingAction(formData: FormData) {
     : input.decision === "ignore" ? "ignored" as const
       : input.decision === "snooze" ? "snoozed" as const
         : "open" as const;
-  const [finding] = await withAuthorizedWorkspace(context.workspaceId, (db) => db.update(optimizationFindings).set({ status, snoozedUntil, updatedAt: now }).where(and(
+  const [finding] = await withWorkspaceMutation(context.workspaceId, (db) => db.update(optimizationFindings).set({ status, snoozedUntil, updatedAt: now }).where(and(
     eq(optimizationFindings.id, input.findingId),
     eq(optimizationFindings.workspaceId, context.workspaceId),
   )).returning({ id: optimizationFindings.id }));

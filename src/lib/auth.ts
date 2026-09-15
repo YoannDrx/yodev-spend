@@ -5,11 +5,12 @@ import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { organization } from "better-auth/plugins";
-import { and, eq, gt } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { requireServiceDb } from "@/db";
 import * as authSchema from "@/db/schema";
 import { allowedGitHubIds, env } from "@/lib/env";
 import { getWorkspaceEntitlements } from "@/server/commercial/plans";
+import { hasRegistrationInvitation } from "@/server/auth/registration";
 import { Resend } from "resend";
 
 let singleton: ReturnType<typeof createAuth> | undefined;
@@ -57,14 +58,7 @@ function createAuth() {
           before: async (user) => {
             const githubId = String((user as typeof user & { githubId?: string }).githubId ?? "");
             if (allowedGitHubIds.has(githubId) || env.COMMERCIAL_SIGNUP_ENABLED === "true") return;
-            const [invitation] = await requireServiceDb().select({ id: authSchema.betaInvitations.id })
-              .from(authSchema.betaInvitations)
-              .where(and(
-                eq(authSchema.betaInvitations.email, user.email.toLowerCase()),
-                eq(authSchema.betaInvitations.status, "pending"),
-                gt(authSchema.betaInvitations.expiresAt, new Date()),
-              )).limit(1);
-            if (!invitation) throw new APIError("FORBIDDEN", { message: "A valid Spend beta invitation is required." });
+            if (!await hasRegistrationInvitation(user.email)) throw new APIError("FORBIDDEN", { message: "A valid Spend invitation is required." });
           },
         },
       },

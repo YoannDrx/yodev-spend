@@ -5,7 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { externalResourceProjects, externalResources, projects, providerConnections } from "@/db/schema";
 import { requireWorkspaceMutationContext } from "@/server/auth/context";
-import { withAuthorizedWorkspace } from "@/server/auth/workspace-transaction";
+import { withWorkspaceMutation } from "@/server/auth/workspace-transaction";
 import { archiveProviderConnection, connectProviderAccount } from "@/server/connectors/connections";
 import { runConnectorSync, type RunnableSyncCapability } from "@/server/connectors/sync";
 import { generateConnectorOptimizationFindings } from "@/server/optimization/generate";
@@ -87,7 +87,7 @@ export async function syncProviderConnectionAction(formData: FormData) {
   const from = new Date(to);
   from.setUTCDate(from.getUTCDate() - 35);
   const capabilities: RunnableSyncCapability[] = input.capability === "all"
-    ? await withAuthorizedWorkspace(context.workspaceId, async (db) => {
+    ? await withWorkspaceMutation(context.workspaceId, async (db) => {
       const [connection] = await db.select({ capabilities: providerConnections.capabilities }).from(providerConnections).where(and(eq(providerConnections.id, input.connectionId), eq(providerConnections.workspaceId, context.workspaceId))).limit(1);
       if (!connection) throw new Error("Provider connection not found.");
       return [
@@ -122,7 +122,7 @@ export async function archiveProviderConnectionAction(formData: FormData) {
 export async function assignExternalResourceProjectAction(formData: FormData) {
   const input = z.object({ locale: localeSchema, externalResourceId: z.uuid(), projectId: z.uuid() }).parse(Object.fromEntries(formData));
   const context = await requireWorkspaceMutationContext(input.locale);
-  const resource = await withAuthorizedWorkspace(context.workspaceId, async (db) => {
+  const resource = await withWorkspaceMutation(context.workspaceId, async (db) => {
   const [resource] = await db.select().from(externalResources).where(and(eq(externalResources.id, input.externalResourceId), eq(externalResources.workspaceId, context.workspaceId))).limit(1);
   const [project] = await db.select().from(projects).where(and(eq(projects.id, input.projectId), eq(projects.workspaceId, context.workspaceId))).limit(1);
   if (!resource || !project) throw new Error("Resource or project not found.");

@@ -1,4 +1,5 @@
 import "server-only";
+import { lockWorkspaceLifecycle } from "@/server/operations/workspace-lock";
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
@@ -162,6 +163,9 @@ export async function completeGitHubInstallation(input: { state: string; userId:
   assertGitHubInstallationCapabilities(installation);
 
   await requireServiceDb().transaction(async (tx) => {
+    await lockWorkspaceLifecycle(tx,attempt.workspaceId);
+    const [workspace]=await tx.select({status:workspaceProfiles.commercialStatus}).from(workspaceProfiles).where(eq(workspaceProfiles.id,attempt.workspaceId));
+    if(!workspace||!["private","active","trialing","past_due"].includes(workspace.status))throw new GitHubInstallFlowError("invalid_or_expired_state");
     await tx.execute(sql`select pg_advisory_xact_lock(${installation.installationId})`);
     const [lockedAttempt] = await tx.select({ id: githubInstallStates.id })
       .from(githubInstallStates)

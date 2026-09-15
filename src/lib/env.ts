@@ -1,3 +1,4 @@
+import { getLegalReadiness } from "@/server/commercial/legal-readiness";
 import { z } from "zod";
 
 const optionalSecret = z.string().min(1).optional();
@@ -33,6 +34,15 @@ const schema = z.object({
   STRIPE_STUDIO_ANNUAL_PRICE_ID: optionalSecret,
   RESEND_API_KEY: optionalSecret,
   RESEND_FROM_EMAIL: z.string().min(3).max(320).optional(),
+  LEGAL_ENTITY_NAME: optionalSecret,
+  LEGAL_ENTITY_FORM: optionalSecret,
+  LEGAL_REGISTRATION: optionalSecret,
+  LEGAL_ADDRESS: optionalSecret,
+  LEGAL_PUBLICATION_DIRECTOR: optionalSecret,
+  LEGAL_CONTACT_PHONE: optionalSecret,
+  LEGAL_VAT_NUMBER: optionalSecret,
+  LEGAL_APPROVED_VERSION: optionalSecret,
+  SUPPORT_EMAIL: optionalSecret,
   CRON_SECRET: optionalSecret,
   CRON_ENABLED: z.enum(["true", "false"]).default("false"),
   STRIPE_BILLING_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -40,7 +50,11 @@ const schema = z.object({
   GMAIL_CONNECTOR_ENABLED: z.enum(["true", "false"]).default("false"),
   WORKFLOW_ENABLED: z.enum(["true", "false"]).default("false"),
   AUTH_TEST_MODE: z.enum(["true", "false"]).default("false"),
+  DEMO_DATA_ENABLED: z.enum(["true", "false"]).default("false"),
 }).superRefine((value, context) => {
+  if (value.DEMO_DATA_ENABLED === "true" && (value.NODE_ENV === "production" || value.AUTH_TEST_MODE !== "true")) {
+    context.addIssue({ code: "custom", path: ["DEMO_DATA_ENABLED"], message: "Demonstration data requires local AUTH_TEST_MODE." });
+  }
   if (value.NODE_ENV === "production" && value.AUTH_TEST_MODE === "true") {
     context.addIssue({
       code: "custom",
@@ -60,6 +74,7 @@ const schema = z.object({
       message: "DATABASE_APP_URL and DATABASE_SERVICE_URL must use distinct production roles.",
     });
   }
+  if (value.NODE_ENV === "production" && value.COMMERCIAL_SIGNUP_ENABLED === "true" && !getLegalReadiness(value).ready) context.addIssue({code:"custom",path:["LEGAL_APPROVED_VERSION"],message:"Public commercial signup requires complete legal identity and approval of the current documents."});
   if (value.NODE_ENV === "production") {
     const configuredDatabaseUrls = [value.DATABASE_APP_URL, value.DATABASE_SERVICE_URL, value.DATABASE_MIGRATION_URL].filter((url): url is string => Boolean(url));
     if (new Set(configuredDatabaseUrls).size !== configuredDatabaseUrls.length) {
@@ -76,7 +91,7 @@ const schema = z.object({
     || value.COMMERCIAL_SIGNUP_ENABLED === "true"
     || value.GMAIL_CONNECTOR_ENABLED === "true";
   if (value.NODE_ENV === "production" && commercialEnabled) {
-    for (const key of ["DATABASE_APP_URL", "DATABASE_SERVICE_URL", "DATABASE_MIGRATION_URL"] as const) {
+    for (const key of ["DATABASE_APP_URL", "DATABASE_SERVICE_URL"] as const) {
       if (!value[key]) context.addIssue({ code: "custom", path: [key], message: `${key} is required when commercial features are enabled.` });
     }
   }

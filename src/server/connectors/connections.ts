@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 import { billingAccounts, providerConnections, providers } from "@/db/schema";
+import { withWorkspaceMutation } from "@/server/auth/workspace-transaction";
 import { requireServiceDb } from "@/db";
 import { credentialBinding, encryptCredentials } from "./credentials";
 import { getConnector } from "./registry";
@@ -31,7 +32,7 @@ export async function connectProviderAccount(input: {
   )).limit(1);
   if (!existingConnection[0]) await assertWorkspaceCanCreate(input.workspaceId, "connection");
 
-  return db.transaction(async (tx) => {
+  return withWorkspaceMutation(input.workspaceId, async (tx) => {
     const [existing] = await tx.select().from(providerConnections).where(and(
       eq(providerConnections.workspaceId, input.workspaceId),
       eq(providerConnections.providerId, provider.id),

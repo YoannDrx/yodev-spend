@@ -993,3 +993,23 @@ This matrix is the completeness check for the issues raised by the audit. A find
 | GA connectors Anthropic/AWS/OVHcloud/Stripe fees/Supabase/Resend are absent | W15, each gated by the W9 connector acceptance matrix |
 | No independent security, legal or fiscal approval exists | W14 independent pentest and W16 professional validations |
 | Spend is not and should not be an email-sending product or APM | Sections 2 and 4 retain these as explicit non-goals; Mail by YoDev remains separate |
+
+## 31. Current audit checkpoint — 2026-09-06
+
+The production baseline descriptions in section 3 are historical: Vercel now serves commit `2e5fa64` with the public commercial pages, in `iad1`. The revised evidence and feature matrix are in `docs/PRODUCTION_AUDIT_2026-09-06.md`.
+
+Local remediation on `codex/production-audit-20260906` addresses W2 runtime identities, W5 collaborator admission, W6 Portal plan changes/concurrent subscription updates, W7 money/ledger/invoice/navigation truth, W12 a bounded business export and W13 accessible forms/mobile/error states. A dedicated RLS verification command and CI database-test requirement strengthen W4. Runtime migration credentials are no longer a commercial startup requirement; operator migration jobs remain separate.
+
+W8 durable recovery, W9 real provider reconciliation, W12 effective deletion/retention, W14 restoration/operations and W16 legal/tax completion remain release gates. The user's request authorizes implementation and audit, but no live payment or destructive production migration has been executed. No milestone is marked GA solely on local test evidence.
+
+Validation finale de ce lot : lint, frontières DB, 465 clés FR/EN, TypeScript, 122 tests (39 fichiers, aucun ignoré), build de production, sécurité des deux rôles runtime sur 30 tables tenant, 15 tests Playwright et audit npm sans vulnérabilité passent. La promotion et les gates commerciaux externes restent ouverts ; voir docs/PRODUCTION_AUDIT_2026-09-06.md.
+
+## 32. Four priority workstreams — 2026-09-07
+
+W7 now includes guided immutable corrections of manual costs and manual invoice replacements. W12 now has executable request/revoke/export-window/cancel/purge behavior, protected by lifecycle locks and SQL migration 0012; commercial records and shared identities remain explicitly separate. W8 gains abandoned-run recovery and per-key connector retries, while durable queue/load acceptance remains open.
+
+W4 adds staged configuration preflight and a separate two-account Better Auth session browser suite; W14 adds read-only operational checks and a real snapshot restoration report. The restoration accidentally finalized by default, temporarily swapping the production compute; this was remediated and documented, with 46 identical table fingerprints and original routing restored. No application release was promoted.
+
+W16 has expanded FR/EN drafts and a current-version identity/approval gate for public signup/live Checkout. Missing company/support data and unselected Stripe sandbox/test accounts prevent final commercial acceptance. The four workstreams must not be marked fully complete merely because their local implementation passes tests; provider consent, delivered invitation, sandbox lifecycle, alert delivery and final contracts remain evidence gates.
+
+Validation finale du lot : `npm run check` passe (lint, frontières DB, 502 clés FR/EN, TypeScript, 134 tests sans skip et build de 55 pages). Les 18 scénarios navigateur et le contrôle des rôles DB passent également. Aucun déploiement applicatif n’a été effectué.

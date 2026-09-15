@@ -7,22 +7,36 @@ import { alertDedupeKey } from "@/server/alerts/rules";
 import { GitHubRepositoryAdapter } from "@/server/github/adapter";
 import { DeterministicRepositoryScanner, evidenceSignature, safeErrorMessage, type ScanMode } from "@/server/scanner";
 import { FINGERPRINT_VERSION } from "@/server/scanner/fingerprints/registry";
+import { withActiveWorkspaceJob } from "@/server/operations/workspace-lock";
 import { logEvent } from "@/server/logging";
 
-export async function runRepositoryScan({workspaceId,repositoryId,mode="quick",trigger="manual",force=false,idempotencyKey}:{workspaceId:string;repositoryId:string;mode?:ScanMode;trigger?:"manual"|"scheduled"|"initial";force?:boolean;idempotencyKey?:string}) {
+async function executeRepositoryScan({workspaceId,repositoryId,mode="quick",trigger="manual",force=false,idempotencyKey}:{workspaceId:string;repositoryId:string;mode?:ScanMode;trigger?:"manual"|"scheduled"|"initial";force?:boolean;idempotencyKey?:string}) {
   logEvent("scan_started",{workspaceId,repositoryId,mode,trigger});
   const db=requireServiceDb();
   const [repository]=await db.select({repository:repositories,installation:githubInstallations}).from(repositories).innerJoin(githubInstallations,eq(githubInstallations.id,repositories.githubInstallationId)).where(and(eq(repositories.id,repositoryId),eq(repositories.workspaceId,workspaceId),eq(repositories.scanEnabled,true),eq(githubInstallations.status,"active"),isNotNull(githubInstallations.verifiedAt))).limit(1);
   if(!repository) throw new Error("Repository not found, disabled, or disconnected.");
   const adapter=new GitHubRepositoryAdapter(repository.installation.installationId);
   const ref={owner:repository.repository.owner,name:repository.repository.name,defaultBranch:repository.repository.defaultBranch};
-  const commitSha=await adapter.getDefaultBranchSha(ref);
-  if(!force&&repository.repository.lastScannedCommitSha===commitSha){const now=new Date();const [skipped]=await db.transaction(async(tx)=>{const rows=await tx.insert(scanRuns).values({workspaceId,repositoryId,type:mode,trigger,status:"skipped",commitSha,idempotencyKey,fingerprintVersion:FINGERPRINT_VERSION,completedAt:now,warnings:["unchanged_commit"]}).returning();await tx.update(repositories).set({lastKnownCommitSha:commitSha,lastScanAttemptAt:now,updatedAt:now}).where(and(eq(repositories.id,repositoryId),eq(repositories.workspaceId,workspaceId)));await tx.update(alerts).set({status:"resolved",resolvedAt:now,updatedAt:now}).where(and(eq(alerts.workspaceId,workspaceId),eq(alerts.status,"open"),eq(alerts.dedupeKey,alertDedupeKey("SCAN_FAILED",[repositoryId]))));return rows;});logEvent("repository_skipped",{workspaceId,repositoryId,reason:"unchanged_commit"});return skipped;}
-  let scanRunId:string;
-  try{const [run]=await db.insert(scanRuns).values({workspaceId,repositoryId,type:mode,trigger,status:"running",commitSha,idempotencyKey,fingerprintVersion:FINGERPRINT_VERSION,startedAt:new Date()}).returning({id:scanRuns.id});scanRunId=run.id;}catch{throw new Error("A scan is already running for this repository.");}
+  if(idempotencyKey){
+    const [previous]=await db.select().from(scanRuns).where(and(eq(scanRuns.workspaceId,workspaceId),eq(scanRuns.idempotencyKey,idempotencyKey)));
+    if(previous&&["success","partial","skipped"].includes(previous.status))return previous;
+    if(previous?.status==="failed")await db.update(scanRuns).set({idempotencyKey:null}).where(and(eq(scanRuns.workspaceId,workspaceId),eq(scanRuns.id,previous.id),eq(scanRuns.status,"failed")));
+  }
+  const now=new Date();
+  const [run]=await db.insert(scanRuns).values({workspaceId,repositoryId,type:mode,trigger,status:"running",idempotencyKey,fingerprintVersion:FINGERPRINT_VERSION,startedAt:now}).onConflictDoNothing().returning({id:scanRuns.id});
+  if(!run)throw new Error("A scan is already running for this repository.");
+  const scanRunId=run.id;
   try{
+    const now=new Date();
+    const commitSha=await adapter.getDefaultBranchSha(ref);
+    await db.update(scanRuns).set({commitSha}).where(and(eq(scanRuns.workspaceId,workspaceId),eq(scanRuns.id,scanRunId)));
+    if(!force&&repository.repository.lastScannedCommitSha===commitSha){
+      await db.update(scanRuns).set({status:"skipped",completedAt:now,updatedAt:now,warnings:["unchanged_commit"]}).where(and(eq(scanRuns.workspaceId,workspaceId),eq(scanRuns.id,scanRunId)));
+      await db.update(repositories).set({lastKnownCommitSha:commitSha,lastScanAttemptAt:now,updatedAt:now}).where(and(eq(repositories.id,repositoryId),eq(repositories.workspaceId,workspaceId)));
+      return {id:scanRunId,status:"skipped"};
+    }
     const snapshot=await adapter.loadSnapshot(ref,mode); const result=await new DeterministicRepositoryScanner().scan(snapshot,mode); const detected=result.detections.filter((item)=>item.confidence>=60);
-    const providerRows=detected.length?await db.select().from(providers).where(inArray(providers.slug,detected.map((item)=>item.providerSlug))):[]; const providerBySlug=new Map(providerRows.map((item)=>[item.slug,item])); const detectedProviderIds=new Set(providerRows.map((item)=>item.id)); const priorObservations=!result.partial?await db.select().from(repositoryProviderObservations).where(and(eq(repositoryProviderObservations.workspaceId,workspaceId),eq(repositoryProviderObservations.repositoryId,repositoryId))):[]; const now=new Date();
+    const providerRows=detected.length?await db.select().from(providers).where(inArray(providers.slug,detected.map((item)=>item.providerSlug))):[]; const providerBySlug=new Map(providerRows.map((item)=>[item.slug,item])); const detectedProviderIds=new Set(providerRows.map((item)=>item.id)); const priorObservations=!result.partial?await db.select().from(repositoryProviderObservations).where(and(eq(repositoryProviderObservations.workspaceId,workspaceId),eq(repositoryProviderObservations.repositoryId,repositoryId))):[];
     await db.transaction(async(tx)=>{
       for(const detection of detected){const provider=providerBySlug.get(detection.providerSlug);if(!provider)continue;
         if(detection.evidence.length)await tx.insert(detectionEvidence).values(detection.evidence.map((item)=>({workspaceId,scanRunId,repositoryId,providerId:provider.id,type:item.type,key:item.key,filePath:item.filePath,metadata:item.metadata,weight:item.weight})));
@@ -41,4 +55,8 @@ export async function runRepositoryScan({workspaceId,repositoryId,mode="quick",t
     });
     logEvent("scan_completed",{workspaceId,repositoryId,scanRunId,status:result.partial?"partial":"success",filesInspected:result.filesInspected,bytesInspected:result.bytesInspected,evidenceCount:detected.reduce((sum,item)=>sum+item.evidence.length,0)});return {id:scanRunId,status:result.partial?"partial":"success",detections:detected.length};
   }catch(error){const now=new Date();const message=safeErrorMessage(error);await db.transaction(async(tx)=>{await tx.update(scanRuns).set({status:"failed",completedAt:now,errorCode:"SCAN_FAILED",errorMessage:message,updatedAt:now}).where(eq(scanRuns.id,scanRunId));await tx.update(repositories).set({lastScanAttemptAt:now,updatedAt:now}).where(eq(repositories.id,repositoryId));await tx.insert(alerts).values({workspaceId,type:"SCAN_FAILED",severity:"warning",dedupeKey:alertDedupeKey("SCAN_FAILED",[repositoryId]),title:`Scan failed: ${repository.repository.fullName}`,description:message}).onConflictDoNothing();});logEvent("scan_failed",{workspaceId,repositoryId,scanRunId,errorCode:"SCAN_FAILED"});throw error;}
+}
+
+export function runRepositoryScan(input: Parameters<typeof executeRepositoryScan>[0]) {
+  return withActiveWorkspaceJob(input.workspaceId,()=>executeRepositoryScan(input));
 }

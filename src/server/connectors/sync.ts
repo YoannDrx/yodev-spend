@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq, inArray, isNotNull, isNull, notInArray } from "drizzle-orm";
 import {
   billingAccounts,
+  invoices,
   connectorSyncRuns,
   costEntries,
   externalResources,
@@ -11,7 +12,9 @@ import {
   providers,
   subscriptions,
 } from "@/db/schema";
-import { requireServiceDb, type SpendDatabase } from "@/db";
+import { requireServiceDb, type SpendDatabase, type SpendTransaction } from "@/db";
+import { lockBillingAccount, matchingInvoice } from "@/server/billing/reconciliation";
+import { withActiveWorkspaceJob } from "@/server/operations/workspace-lock";
 import { logEvent } from "@/server/logging";
 import { decimalToMinorUnits } from "@/server/finops/decimal";
 import { generateConnectorOptimizationFindings } from "@/server/optimization/generate";
@@ -91,10 +94,12 @@ async function persistResources(
 }
 
 async function persistCosts(
-  db: SpendDatabase,
+  db: SpendTransaction,
   input: { workspaceId: string; connectionId: string; billingAccountId: string; providerSlug: string },
   costs: NormalizedConnectorCost[],
 ) {
+  await lockBillingAccount(db, input.workspaceId, input.billingAccountId);
+  const closed = await db.select().from(invoices).where(and(eq(invoices.workspaceId, input.workspaceId), eq(invoices.billingAccountId, input.billingAccountId), eq(invoices.status, "issued")));
   const resourceRows = await db.select({ id: externalResources.id, externalId: externalResources.externalId }).from(externalResources).where(and(
     eq(externalResources.workspaceId, input.workspaceId),
     eq(externalResources.connectionId, input.connectionId),
@@ -105,7 +110,10 @@ async function persistCosts(
 
   for (const cost of costs) {
     const money = decimalToMinorUnits(cost.amount, cost.currency);
+    const invoice = matchingInvoice(closed, cost);
     const values = {
+      supersededByInvoiceId: invoice?.id ?? null,
+      supersededAt: invoice ? now : null,
       billingAccountId: input.billingAccountId,
       connectionId: input.connectionId,
       externalResourceId: cost.resourceExternalId ? resourceByExternalId.get(cost.resourceExternalId) ?? null : null,
@@ -188,12 +196,12 @@ async function persistCommitments(
     }).onConflictDoUpdate({
       target: [subscriptions.workspaceId, subscriptions.source, subscriptions.externalId],
       targetWhere: isNotNull(subscriptions.externalId),
-      set: { planVersionId: plan.id, name: commitment.name, amountMinor: money?.amountMinor ?? 0n, currency: commitment.currency, billingInterval: interval, renewalDate: commitment.periodEnd, updatedAt: now },
+      set: { status: commitment.periodEnd > now ? "active" : "cancelled", cancelledAt: commitment.periodEnd > now ? null : commitment.periodEnd, startedAt: commitment.periodStart, billingModel: money ? (interval === "year" ? "fixed_yearly" : "fixed_monthly") : "usage", planVersionId: plan.id, name: commitment.name, amountMinor: money?.amountMinor ?? 0n, currency: commitment.currency, billingInterval: interval, renewalDate: commitment.periodEnd, updatedAt: now },
     });
   }
 }
 
-export async function runConnectorSync(input: {
+async function executeConnectorSync(input: {
   workspaceId: string;
   connectionId: string;
   capability: RunnableSyncCapability;
@@ -216,7 +224,7 @@ export async function runConnectorSync(input: {
   )).limit(1);
   if (!billingAccount) throw new Error("The provider connection has no active billing account.");
 
-  const [run] = await db.insert(connectorSyncRuns).values({
+  let [run] = await db.insert(connectorSyncRuns).values({
     workspaceId: input.workspaceId,
     connectionId: input.connectionId,
     capability: input.capability,
@@ -225,14 +233,17 @@ export async function runConnectorSync(input: {
     requestedFrom: input.from,
     requestedTo: input.to,
     startedAt: new Date(),
-  }).onConflictDoNothing().returning({ id: connectorSyncRuns.id });
+  }).onConflictDoNothing().returning({ id: connectorSyncRuns.id, retryCount: connectorSyncRuns.retryCount });
   if (!run) {
     const [existing] = await db.select().from(connectorSyncRuns).where(and(
       eq(connectorSyncRuns.workspaceId, input.workspaceId),
       eq(connectorSyncRuns.idempotencyKey, input.idempotencyKey),
     )).limit(1);
     if (existing && ["success", "partial", "skipped"].includes(existing.status)) return existing;
-    throw new Error("A synchronization is already running for this provider capability.");
+    if(existing&&["failed","rate_limited"].includes(existing.status)&&existing.retryCount<3&&(!existing.nextRetryAt||existing.nextRetryAt<=new Date())){
+      [run]=await db.update(connectorSyncRuns).set({status:"running",retryCount:existing.retryCount+1,startedAt:new Date(),completedAt:null,errorCode:null,errorMessage:null,updatedAt:new Date()}).where(and(eq(connectorSyncRuns.workspaceId,input.workspaceId),eq(connectorSyncRuns.id,existing.id),inArray(connectorSyncRuns.status,["failed","rate_limited"]))).returning({id:connectorSyncRuns.id,retryCount:connectorSyncRuns.retryCount});
+    }
+    if(!run)throw new Error("SYNC_NOT_READY_FOR_RETRY");
   }
 
   logEvent("connector_sync_started", { workspaceId: input.workspaceId, connectionId: input.connectionId, capability: input.capability, syncRunId: run.id });
@@ -257,7 +268,7 @@ export async function runConnectorSync(input: {
       const result = await connector.syncAccruedCosts(context);
       recordsRead = result.items.length;
       runCompleteness = result.completeness;
-      await persistCosts(db, { workspaceId: input.workspaceId, connectionId: input.connectionId, billingAccountId: billingAccount.id, providerSlug: row.providerSlug }, result.items);
+      await db.transaction((tx) => persistCosts(tx, { workspaceId: input.workspaceId, connectionId: input.connectionId, billingAccountId: billingAccount.id, providerSlug: row.providerSlug }, result.items));
       await generateConnectorOptimizationFindings(input.workspaceId, input.connectionId);
     } else if (input.capability === "subscriptions" && connector.syncCommitments) {
       const result = await connector.syncCommitments(context);
@@ -277,9 +288,13 @@ export async function runConnectorSync(input: {
     const safe = safeConnectorError(error);
     const completedAt = new Date();
     const status = safe.code.endsWith("RATE_LIMITED") ? "rate_limited" as const : "failed" as const;
-    await db.update(connectorSyncRuns).set({ status, errorCode: safe.code, errorMessage: safe.message, nextRetryAt: safe.retryAfter, completedAt, updatedAt: completedAt }).where(eq(connectorSyncRuns.id, run.id));
+    await db.update(connectorSyncRuns).set({ status, errorCode: safe.code, errorMessage: safe.message, nextRetryAt: safe.retryAfter ?? new Date(completedAt.getTime()+Math.min(60,5*2**run.retryCount)*60_000), completedAt, updatedAt: completedAt }).where(eq(connectorSyncRuns.id, run.id));
     await db.update(providerConnections).set({ status: status === "rate_limited" ? "rate_limited" : safe.code.endsWith("CREDENTIALS_INVALID") ? "invalid" : "error", lastErrorCode: safe.code, updatedAt: completedAt }).where(and(eq(providerConnections.id, input.connectionId), eq(providerConnections.workspaceId, input.workspaceId)));
     logEvent("connector_sync_failed", { workspaceId: input.workspaceId, connectionId: input.connectionId, capability: input.capability, syncRunId: run.id, errorCode: safe.code });
     throw new Error(safe.message);
   }
+}
+
+export function runConnectorSync(input: Parameters<typeof executeConnectorSync>[0]) {
+  return withActiveWorkspaceJob(input.workspaceId,()=>executeConnectorSync(input));
 }

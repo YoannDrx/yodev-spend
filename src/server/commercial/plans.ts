@@ -71,6 +71,7 @@ export async function getWorkspaceEntitlements(workspaceId: string, db: SpendExe
   const [workspace] = await db.select({ commercialStatus: workspaceProfiles.commercialStatus }).from(workspaceProfiles)
     .where(eq(workspaceProfiles.id, workspaceId)).limit(1);
   if (!workspace) return inactiveEntitlements;
+  if (["deletion_scheduled","cancelled"].includes(workspace.commercialStatus)) return inactiveEntitlements;
   if (workspace.commercialStatus === "private") return privateEntitlements;
 
   const now = new Date();

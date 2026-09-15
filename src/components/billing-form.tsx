@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import { Plus, ReceiptText } from "lucide-react";
 import { createBillingAccount, createCostEntry, updateBillingAccountAllocation } from "@/server/actions/billing";
 
@@ -58,11 +59,14 @@ export function BillingForms({
   labels: Labels;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+  const monthStart = `${today.slice(0,7)}-01`;
+  const now = new Date();
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+1,1)).toISOString().slice(0,10);
   return (
     <div className="billing-forms">
       <details className="panel">
         <summary className="panel-head"><h2><Plus size={13} />{labels.newAccount}</h2></summary>
-        <form action={createBillingAccount} className="form-card" style={{ border: 0, margin: 0 }}>
+        <ActionForm action={createBillingAccount} className="form-card" style={{ border: 0, margin: 0 }}>
           <input type="hidden" name="locale" value={locale} />
           <div className="field"><label htmlFor="billing-name">{labels.name}</label><input id="billing-name" name="name" required /></div>
           <div className="field"><label htmlFor="billing-provider">{labels.provider}</label><select id="billing-provider" name="providerSlug">{providerOptions.map((slug) => <option value={slug} key={slug}>{slug}</option>)}</select></div>
@@ -71,31 +75,32 @@ export function BillingForms({
           <div className="field"><label htmlFor="billing-projects">{labels.sharedProjects}</label><select id="billing-projects" name="projectIds" multiple size={Math.min(Math.max(projects.length, 2), 6)}>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select><small>{labels.sharedProjectsHelp}</small></div>
           <div className="field"><label htmlFor="billing-allocation-method">{labels.allocationMethod}</label><select id="billing-allocation-method" name="allocationMethod"><option value="equal">{labels.equal}</option><option value="manual">{labels.manualAllocation}</option></select></div>
           {projects.map((project) => <div className="field" key={project.id}><label htmlFor={`billing-allocation-${project.id}`}>{project.name} · {labels.allocationBps}</label><input id={`billing-allocation-${project.id}`} name={`allocationBps:${project.id}`} type="number" min="0" max="10000" defaultValue="0" /></div>)}
-          <div className="field"><label htmlFor="billing-amount">{labels.amountMinor}</label><input id="billing-amount" name="amountMinor" type="number" min="0" required /></div>
+          <div className="field"><label htmlFor="billing-amount">{labels.amountMinor}</label><input id="billing-amount" name="amount" type="text" inputMode="decimal" placeholder="0,00" required /></div>
+          <div className="field"><label htmlFor="billing-currency">{labels.currency}</label><input id="billing-currency" name="currency" defaultValue="EUR" minLength={3} maxLength={3} required/></div>
           <div className="field"><label htmlFor="billing-interval">{labels.interval}</label><select id="billing-interval" name="billingInterval"><option value="month">{labels.month}</option><option value="year">{labels.year}</option></select></div>
           <button className="button button-primary" type="submit">{labels.newAccount}</button>
-        </form>
+        </ActionForm>
       </details>
 
       {accounts.length > 0 ? (
         <details className="panel">
           <summary className="panel-head"><h2><ReceiptText size={13} />{labels.newCost}</h2></summary>
-          <form action={createCostEntry} className="form-card" style={{ border: 0, margin: 0 }}>
+          <ActionForm action={createCostEntry} className="form-card" style={{ border: 0, margin: 0 }}>
             <input type="hidden" name="locale" value={locale} />
             <div className="field"><label htmlFor="cost-account">{labels.account}</label><select id="cost-account" name="billingAccountId">{accounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></div>
             <div className="field"><label htmlFor="cost-type">{labels.costType}</label><select id="cost-type" name="type"><option value="usage">{labels.usage}</option><option value="subscription">{labels.subscription}</option><option value="credit">{labels.credit}</option><option value="tax">{labels.tax}</option><option value="manual">{labels.manual}</option></select></div>
-            <div className="field"><label htmlFor="cost-amount">{labels.amountMinor}</label><input id="cost-amount" name="amountMinor" type="number" min="0" required /></div>
+            <div className="field"><label htmlFor="cost-amount">{labels.amountMinor}</label><input id="cost-amount" name="amount" type="text" inputMode="decimal" placeholder="0,00" required /></div>
             <div className="field"><label htmlFor="cost-currency">{labels.currency}</label><input id="cost-currency" name="currency" defaultValue="EUR" minLength={3} maxLength={3} required /></div>
-            <div className="field"><label htmlFor="cost-start">{labels.periodStart}</label><input id="cost-start" name="periodStart" type="date" defaultValue={today} required /></div>
-            <div className="field"><label htmlFor="cost-end">{labels.periodEnd}</label><input id="cost-end" name="periodEnd" type="date" defaultValue={today} required /></div>
+            <div className="field"><label htmlFor="cost-start">{labels.periodStart}</label><input id="cost-start" name="periodStart" type="date" defaultValue={monthStart} required /></div>
+            <div className="field"><label htmlFor="cost-end">{labels.periodEnd}</label><input id="cost-end" name="periodEnd" type="date" defaultValue={monthEnd} required /></div>
             <div className="field"><label htmlFor="cost-description">{labels.description}</label><input id="cost-description" name="description" maxLength={240} /></div>
             <button className="button button-primary" type="submit">{labels.newCost}</button>
-          </form>
+          </ActionForm>
         </details>
       ) : null}
       {accounts.length > 0 ? <details className="panel">
         <summary className="panel-head"><h2>{labels.updateAllocation}</h2></summary>
-        <div className="panel-body">{accounts.map((account) => <form action={updateBillingAccountAllocation} className="form-card" key={account.id}>
+        <div className="panel-body">{accounts.map((account) => <ActionForm action={updateBillingAccountAllocation} className="form-card" key={account.id}>
           <input type="hidden" name="locale" value={locale} />
           <input type="hidden" name="billingAccountId" value={account.id} />
           <strong>{account.name}</strong>
@@ -105,7 +110,7 @@ export function BillingForms({
             return <div className="field" key={project.id}><label><span><input name="projectIds" type="checkbox" value={project.id} defaultChecked={Boolean(allocation)} /> {project.name}</span></label><input aria-label={`${project.name} ${labels.allocationBps}`} name={`allocationBps:${project.id}`} type="number" min="0" max="10000" defaultValue={allocation?.allocationBps ?? 0} /></div>;
           })}
           <button className="button button-primary" type="submit">{labels.updateAllocation}</button>
-        </form>)}</div>
+        </ActionForm>)}</div>
       </details> : null}
     </div>
   );
