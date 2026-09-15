@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { BadgeCheck, Clock3, Lightbulb, X } from "lucide-react";
 import { getTranslations } from "next-intl/server";
@@ -28,9 +29,9 @@ export default async function OptimizationsPage({ params }: PageProps<"/[locale]
             {finding.currency && finding.savingsMaxMinor !== null ? <strong>{t("upTo")} {formatMoney(finding.savingsMaxMinor, finding.currency, locale)}</strong> : <span>—</span>}
             <small>{finding.status}</small>
             <div className="topbar-actions">
-              <form action={reviewOptimizationFindingAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="findingId" value={finding.id} /><input type="hidden" name="decision" value="accept" /><button className="button button-small" type="submit" title={t("accept")}><BadgeCheck size={13} /></button></form>
-              <form action={reviewOptimizationFindingAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="findingId" value={finding.id} /><input type="hidden" name="decision" value="snooze" /><button className="button button-small" type="submit" title={t("snooze")}><Clock3 size={13} /></button></form>
-              <form action={reviewOptimizationFindingAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="findingId" value={finding.id} /><input type="hidden" name="decision" value="ignore" /><button className="button button-small" type="submit" title={t("ignore")}><X size={13} /></button></form>
+              <ActionForm action={reviewOptimizationFindingAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="findingId" value={finding.id} /><input type="hidden" name="decision" value="accept" /><button className="button button-small" type="submit" title={t("accept")}><BadgeCheck size={13} /></button></ActionForm>
+              <ActionForm action={reviewOptimizationFindingAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="findingId" value={finding.id} /><input type="hidden" name="decision" value="snooze" /><button className="button button-small" type="submit" title={t("snooze")}><Clock3 size={13} /></button></ActionForm>
+              <ActionForm action={reviewOptimizationFindingAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="findingId" value={finding.id} /><input type="hidden" name="decision" value="ignore" /><button className="button button-small" type="submit" title={t("ignore")}><X size={13} /></button></ActionForm>
             </div>
           </div>
         </article>)}

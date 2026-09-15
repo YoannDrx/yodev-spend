@@ -44,8 +44,18 @@ jobs:
       - run: npm run db:provision-roles
       - run: npm run db:bootstrap
       - run: npm run db:seed
+      - run: npm run check:db-security
+      - run: npm audit --audit-level=high
       - run: npm run check
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
         env:
           AUTH_TEST_MODE: "true"
+      - run: npm run test:e2e:auth
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failure-evidence
+          path: test-results/
+          retention-days: 7

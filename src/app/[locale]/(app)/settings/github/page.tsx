@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { ExternalLink, GitBranch, ShieldCheck } from "lucide-react";
 import { getTranslations } from "next-intl/server";
@@ -53,16 +54,16 @@ export default async function GitHubSettingsPage({ params }: PageProps<"/[locale
       {connectionErrors.length ? <p className="form-error" role="alert">{t("repositoryLoadFailed", { accounts: connectionErrors.join(", ") })}</p> : null}
       <div className="topbar-actions">
         {env.GITHUB_APP_SLUG && env.GITHUB_APP_CLIENT_ID && env.GITHUB_APP_CLIENT_SECRET && env.CONNECTOR_ENCRYPTION_KEY ? <form action="/api/github/install/start" method="post"><input type="hidden" name="locale" value={locale}/><button className="button button-primary" type="submit"><GitBranch size={14} />{t("connect")}<ExternalLink size={12} /></button></form> : <p>{t("notConfigured")}</p>}
-        <form action={configureGitHubWebhookAction}><input type="hidden" name="locale" value={locale} /><button className="button" type="submit"><ShieldCheck size={14} />{t("syncWebhook")}</button></form>
+        <ActionForm action={configureGitHubWebhookAction}><input type="hidden" name="locale" value={locale} /><button className="button" type="submit"><ShieldCheck size={14} />{t("syncWebhook")}</button></ActionForm>
       </div>
     </div></section>
     {available.length > 0 ? <section className="panel" style={{ marginTop: 16 }}>
       <div className="panel-head"><h2>{t("availableRepos")}</h2></div>
-      <div className="panel-body">{available.map((repo) => <form action={importGitHubRepository} className="list-row" key={`${repo.installationRecordId}-${repo.externalId}`}>
+      <div className="panel-body">{available.map((repo) => <ActionForm action={importGitHubRepository} className="list-row" key={`${repo.installationRecordId}-${repo.externalId}`}>
         <input type="hidden" name="locale" value={locale} /><input type="hidden" name="installationRecordId" value={repo.installationRecordId} /><input type="hidden" name="externalId" value={repo.externalId} /><input type="hidden" name="owner" value={repo.owner} /><input type="hidden" name="name" value={repo.name} /><input type="hidden" name="fullName" value={repo.fullName} /><input type="hidden" name="defaultBranch" value={repo.defaultBranch} /><input type="hidden" name="htmlUrl" value={repo.htmlUrl} /><input type="hidden" name="isPrivate" value={String(repo.isPrivate)} />
         <div className="row-main"><span className="provider-dot"><GitBranch size={14} /></span><div><strong>{repo.fullName}</strong><small>{repo.defaultBranch} · {repo.isPrivate ? t("privateRepository") : t("publicRepository")}</small></div></div>
         <div className="topbar-actions"><select name="projectId" required>{projectRows.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select><button className="button button-primary button-small" type="submit">{t("import")}</button></div>
-      </form>)}</div>
+      </ActionForm>)}</div>
     </section> : null}
   </>;
 }

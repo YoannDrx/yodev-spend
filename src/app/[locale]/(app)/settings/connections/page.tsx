@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { Cable, RefreshCw, ShieldCheck } from "lucide-react";
 import { getTranslations } from "next-intl/server";
@@ -32,41 +33,41 @@ export default async function ConnectionsPage({ params }: PageProps<"/[locale]/s
     <PageHeader title={t("title")} subtitle={t("subtitle")} />
     <section className="panel" style={{ marginBottom: 16 }}>
       <div className="panel-head"><h2><Cable size={14} /> {t("vercelTitle")}</h2></div>
-      <form action={connectVercelAction} className="form-card">
+      <ActionForm action={connectVercelAction} className="form-card">
         <input type="hidden" name="locale" value={locale} />
         <div className="field"><label htmlFor="connection-name">{t("connectionName")}</label><input id="connection-name" name="name" defaultValue="YoDev Vercel" required /></div>
         <div className="field"><label htmlFor="vercel-team-id">{t("teamId")}</label><input id="vercel-team-id" name="teamId" placeholder="team_…" required autoComplete="off" /></div>
         <div className="field"><label htmlFor="vercel-token">{t("accessToken")}</label><input id="vercel-token" name="token" type="password" required autoComplete="new-password" /></div>
         <button className="button button-primary" type="submit"><ShieldCheck size={14} /> {t("connect")}</button>
-      </form>
+      </ActionForm>
       <div className="panel-body"><p className="hint">{t("credentialPolicy")}</p></div>
     </section>
     <div className="dashboard-grid" style={{ marginBottom: 16 }}>
       <section className="panel">
         <div className="panel-head"><h2><Cable size={14} /> {t("openaiTitle")}</h2></div>
-        <form action={connectOpenAIAction} className="form-card">
+        <ActionForm action={connectOpenAIAction} className="form-card">
           <input type="hidden" name="locale" value={locale} />
           <div className="field"><label htmlFor="openai-name">{t("connectionName")}</label><input id="openai-name" name="name" defaultValue="YoDev OpenAI" required /></div>
           <div className="field"><label htmlFor="openai-org">{t("organizationId")}</label><input id="openai-org" name="organizationId" placeholder="org_…" required autoComplete="off" /></div>
           <div className="field"><label htmlFor="openai-key">{t("adminKey")}</label><input id="openai-key" name="adminKey" type="password" required autoComplete="new-password" /></div>
           <button className="button button-primary" type="submit"><ShieldCheck size={14} /> {t("connect")}</button>
-        </form>
+        </ActionForm>
       </section>
       <section className="panel">
         <div className="panel-head"><h2><Cable size={14} /> {t("githubTitle")}</h2></div>
-        <form action={connectGitHubBillingAction} className="form-card">
+        <ActionForm action={connectGitHubBillingAction} className="form-card">
           <input type="hidden" name="locale" value={locale} />
           <div className="field"><label htmlFor="github-name">{t("connectionName")}</label><input id="github-name" name="name" defaultValue="YoDev GitHub" required /></div>
           <div className="field"><label htmlFor="github-org">{t("organization")}</label><input id="github-org" name="organization" required autoComplete="off" /></div>
           <div className="field"><label htmlFor="github-token">{t("githubToken")}</label><input id="github-token" name="token" type="password" required autoComplete="new-password" /></div>
           <button className="button button-primary" type="submit"><ShieldCheck size={14} /> {t("connect")}</button>
           <small>{t("githubPreview")}</small>
-        </form>
+        </ActionForm>
       </section>
     </div>
     <section className="panel" style={{ marginBottom: 16 }}>
       <div className="panel-head"><h2><Cable size={14} /> {t("awsTitle")}</h2></div>
-      <form action={connectAwsAction} className="form-card">
+      <ActionForm action={connectAwsAction} className="form-card">
         <input type="hidden" name="locale" value={locale} />
         <div className="field"><label htmlFor="aws-name">{t("connectionName")}</label><input id="aws-name" name="name" defaultValue="YoDev AWS" required /></div>
         <div className="field"><label htmlFor="aws-account-id">{t("awsAccountId")}</label><input id="aws-account-id" name="accountId" inputMode="numeric" pattern="[0-9]{12}" required autoComplete="off" /></div>
@@ -77,7 +78,7 @@ export default async function ConnectionsPage({ params }: PageProps<"/[locale]/s
         <div className="field"><label htmlFor="aws-metric">{t("awsCostMetric")}</label><select id="aws-metric" name="costMetric" defaultValue="NetUnblendedCost"><option value="NetUnblendedCost">NetUnblendedCost</option><option value="AmortizedCost">AmortizedCost</option><option value="NetAmortizedCost">NetAmortizedCost</option></select></div>
         <button className="button button-primary" type="submit"><ShieldCheck size={14} /> {t("connect")}</button>
         <small>{t("awsRoleHelp")}</small>
-      </form>
+      </ActionForm>
     </section>
     <section className="panel">
       <div className="panel-head"><h2>{t("connectedAccounts")}</h2></div>
@@ -87,8 +88,8 @@ export default async function ConnectionsPage({ params }: PageProps<"/[locale]/s
           return <div className="list-row" key={connection.id}>
             <div className="row-main"><span className="provider-dot"><Cable size={14} /></span><div><strong>{connection.name}</strong><small>{providerName} · {connection.externalAccountName ?? connection.externalAccountId} · {latest ? `${latest.capability}: ${latest.status}` : t("neverSynced")}</small></div></div>
             <div className="topbar-actions">
-              <form action={syncProviderConnectionAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="connectionId" value={connection.id} /><input type="hidden" name="capability" value="all" /><button className="button button-primary button-small" type="submit"><RefreshCw size={13} /> {t("sync")}</button></form>
-              <form action={archiveProviderConnectionAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="connectionId" value={connection.id} /><button className="button button-small" type="submit">{t("archive")}</button></form>
+              <ActionForm action={syncProviderConnectionAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="connectionId" value={connection.id} /><input type="hidden" name="capability" value="all" /><button className="button button-primary button-small" type="submit"><RefreshCw size={13} /> {t("sync")}</button></ActionForm>
+              <ActionForm action={archiveProviderConnectionAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="connectionId" value={connection.id} /><button className="button button-small" type="submit">{t("archive")}</button></ActionForm>
             </div>
           </div>;
         })}
@@ -96,11 +97,11 @@ export default async function ConnectionsPage({ params }: PageProps<"/[locale]/s
     </section>
     {resources.length > 0 && <section className="panel" style={{ marginTop: 16 }}>
       <div className="panel-head"><h2>{t("resourceMappings")}</h2></div>
-      <div className="panel-body">{resources.map((resource) => <form action={assignExternalResourceProjectAction} className="list-row" key={resource.id}>
+      <div className="panel-body">{resources.map((resource) => <ActionForm action={assignExternalResourceProjectAction} className="list-row" key={resource.id}>
         <input type="hidden" name="locale" value={locale} /><input type="hidden" name="externalResourceId" value={resource.id} />
         <div className="row-main"><span className="provider-dot"><Cable size={14} /></span><div><strong>{resource.name}</strong><small>{resource.resourceType} · {resource.status}</small></div></div>
         <div className="topbar-actions"><select name="projectId" defaultValue={mappingByResource.get(resource.id) ?? ""} required><option value="" disabled>{t("chooseProject")}</option>{projectRows.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select><button className="button button-small" type="submit">{t("assign")}</button></div>
-      </form>)}</div>
+      </ActionForm>)}</div>
     </section>}
   </>;
 }

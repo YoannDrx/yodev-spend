@@ -7,7 +7,7 @@ import { z } from "zod";
 import { alerts, billingAccounts, clients, integrationEvents, projectIntegrations, projects, providers, repositories } from "@/db/schema";
 import { slugify } from "@/lib/utils";
 import { requireWorkspaceMutationContext, requireWorkspaceRole } from "@/server/auth/context";
-import { withAuthorizedWorkspace } from "@/server/auth/workspace-transaction";
+import { withWorkspaceMutation } from "@/server/auth/workspace-transaction";
 import { assertWorkspaceCanCreate } from "@/server/commercial/quotas";
 import { isPossibleMigration } from "@/server/integrations/rules";
 
@@ -16,48 +16,60 @@ const projectInput = z.object({ locale:z.enum(["fr","en"]), clientId:z.uuid(), n
 
 export async function createClient(formData: FormData) {
   const input=clientInput.parse(Object.fromEntries(formData)); const context=await requireWorkspaceMutationContext(input.locale); await requireWorkspaceRole(context.workspaceId,["owner","admin"],input.locale);
-  await withAuthorizedWorkspace(context.workspaceId,(db)=>db.insert(clients).values({ workspaceId:context.workspaceId,name:input.name,slug:`${slugify(input.name)}-${randomUUID().slice(0,6)}`,description:input.description }));
+  await withWorkspaceMutation(context.workspaceId,(db)=>db.insert(clients).values({ workspaceId:context.workspaceId,name:input.name,slug:`${slugify(input.name)}-${randomUUID().slice(0,6)}`,description:input.description }));
   revalidatePath(`/${input.locale}/clients`);
 }
 
 export async function createProject(formData: FormData) {
   const input=projectInput.parse(Object.fromEntries(formData)); const context=await requireWorkspaceMutationContext(input.locale); await requireWorkspaceRole(context.workspaceId,["owner","admin"],input.locale);
-  await withAuthorizedWorkspace(context.workspaceId,async(db)=>{await assertWorkspaceCanCreate(context.workspaceId,"project",db);const [client]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,input.clientId),eq(clients.workspaceId,context.workspaceId))).limit(1); if(!client) throw new Error("Client not found in workspace.");await db.insert(projects).values({ workspaceId:context.workspaceId,clientId:input.clientId,name:input.name,slug:`${slugify(input.name)}-${randomUUID().slice(0,6)}`,description:input.description });});
+  await withWorkspaceMutation(context.workspaceId,async(db)=>{await assertWorkspaceCanCreate(context.workspaceId,"project",db);const [client]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,input.clientId),eq(clients.workspaceId,context.workspaceId),eq(clients.status,"active"))).limit(1); if(!client) throw new Error("Client not found in workspace.");await db.insert(projects).values({ workspaceId:context.workspaceId,clientId:input.clientId,name:input.name,slug:`${slugify(input.name)}-${randomUUID().slice(0,6)}`,description:input.description });});
   revalidatePath(`/${input.locale}/projects`);
 }
 
 export async function archiveClient(formData: FormData) {
   const input=z.object({locale:z.enum(["fr","en"]),clientId:z.uuid()}).parse(Object.fromEntries(formData));
   const context=await requireWorkspaceMutationContext(input.locale);await requireWorkspaceRole(context.workspaceId,["owner","admin"],input.locale);const now=new Date();
-  await withAuthorizedWorkspace(context.workspaceId,async(tx)=>{const [client]=await tx.update(clients).set({status:"archived",archivedAt:now,updatedAt:now}).where(and(eq(clients.id,input.clientId),eq(clients.workspaceId,context.workspaceId))).returning({id:clients.id});if(!client)throw new Error("Client not found in workspace.");const projectRows=await tx.update(projects).set({status:"archived",archivedAt:now,updatedAt:now}).where(and(eq(projects.clientId,input.clientId),eq(projects.workspaceId,context.workspaceId))).returning({id:projects.id});for(const project of projectRows)await tx.update(repositories).set({scanEnabled:false,archivedAt:now,updatedAt:now}).where(and(eq(repositories.projectId,project.id),eq(repositories.workspaceId,context.workspaceId)));});
+  await withWorkspaceMutation(context.workspaceId,async(tx)=>{const [client]=await tx.update(clients).set({status:"archived",archivedAt:now,updatedAt:now}).where(and(eq(clients.id,input.clientId),eq(clients.workspaceId,context.workspaceId))).returning({id:clients.id});if(!client)throw new Error("Client not found in workspace.");const projectRows=await tx.update(projects).set({status:"archived",archivedAt:now,updatedAt:now}).where(and(eq(projects.clientId,input.clientId),eq(projects.workspaceId,context.workspaceId))).returning({id:projects.id});for(const project of projectRows)await tx.update(repositories).set({scanEnabled:false,archivedAt:now,updatedAt:now}).where(and(eq(repositories.projectId,project.id),eq(repositories.workspaceId,context.workspaceId)));});
   revalidatePath(`/${input.locale}/clients`);revalidatePath(`/${input.locale}/projects`);
 }
 
 export async function archiveProject(formData: FormData) {
   const input=z.object({locale:z.enum(["fr","en"]),projectId:z.uuid()}).parse(Object.fromEntries(formData));
   const context=await requireWorkspaceMutationContext(input.locale);await requireWorkspaceRole(context.workspaceId,["owner","admin"],input.locale);const now=new Date();
-  await withAuthorizedWorkspace(context.workspaceId,async(tx)=>{const [project]=await tx.update(projects).set({status:"archived",archivedAt:now,updatedAt:now}).where(and(eq(projects.id,input.projectId),eq(projects.workspaceId,context.workspaceId))).returning({id:projects.id});if(!project)throw new Error("Project not found in workspace.");await tx.update(repositories).set({scanEnabled:false,archivedAt:now,updatedAt:now}).where(and(eq(repositories.projectId,input.projectId),eq(repositories.workspaceId,context.workspaceId)));});
+  await withWorkspaceMutation(context.workspaceId,async(tx)=>{const [project]=await tx.update(projects).set({status:"archived",archivedAt:now,updatedAt:now}).where(and(eq(projects.id,input.projectId),eq(projects.workspaceId,context.workspaceId))).returning({id:projects.id});if(!project)throw new Error("Project not found in workspace.");await tx.update(repositories).set({scanEnabled:false,archivedAt:now,updatedAt:now}).where(and(eq(repositories.projectId,input.projectId),eq(repositories.workspaceId,context.workspaceId)));});
   revalidatePath(`/${input.locale}/projects`);revalidatePath(`/${input.locale}/projects/${input.projectId}`);
 }
 
 export async function updateClient(formData: FormData) {
   const input=z.object({locale:z.enum(["fr","en"]),clientId:z.uuid(),name:z.string().trim().min(2).max(140),description:z.string().trim().max(2000).optional()}).parse(Object.fromEntries(formData));
   const context=await requireWorkspaceMutationContext(input.locale);await requireWorkspaceRole(context.workspaceId,["owner","admin"],input.locale);
-  const [client]=await withAuthorizedWorkspace(context.workspaceId,(db)=>db.update(clients).set({name:input.name,description:input.description||null,updatedAt:new Date()}).where(and(eq(clients.id,input.clientId),eq(clients.workspaceId,context.workspaceId))).returning({id:clients.id}));
+  const [client]=await withWorkspaceMutation(context.workspaceId,(db)=>db.update(clients).set({name:input.name,description:input.description||null,updatedAt:new Date()}).where(and(eq(clients.id,input.clientId),eq(clients.workspaceId,context.workspaceId))).returning({id:clients.id}));
   if(!client)throw new Error("Client not found in workspace.");revalidatePath(`/${input.locale}/clients`);revalidatePath(`/${input.locale}/clients/${input.clientId}`);
 }
 
 export async function restoreClient(formData: FormData) {
   const input=z.object({locale:z.enum(["fr","en"]),clientId:z.uuid()}).parse(Object.fromEntries(formData));
   const context=await requireWorkspaceMutationContext(input.locale);await requireWorkspaceRole(context.workspaceId,["owner","admin"],input.locale);
-  const [client]=await withAuthorizedWorkspace(context.workspaceId,(db)=>db.update(clients).set({status:"active",archivedAt:null,updatedAt:new Date()}).where(and(eq(clients.id,input.clientId),eq(clients.workspaceId,context.workspaceId))).returning({id:clients.id}));
+  const [client]=await withWorkspaceMutation(context.workspaceId,(db)=>db.update(clients).set({status:"active",archivedAt:null,updatedAt:new Date()}).where(and(eq(clients.id,input.clientId),eq(clients.workspaceId,context.workspaceId))).returning({id:clients.id}));
   if(!client)throw new Error("Client not found in workspace.");revalidatePath(`/${input.locale}/clients`);revalidatePath(`/${input.locale}/clients/${input.clientId}`);
 }
 
 export async function updateProject(formData: FormData) {
   const input=z.object({locale:z.enum(["fr","en"]),projectId:z.uuid(),name:z.string().trim().min(2).max(140),description:z.string().trim().max(2000).optional(),status:z.enum(["active","maintenance","archived"])}).parse(Object.fromEntries(formData));
   const context=await requireWorkspaceMutationContext(input.locale);await requireWorkspaceRole(context.workspaceId,["owner","admin"],input.locale);const now=new Date();
-  const [project]=await withAuthorizedWorkspace(context.workspaceId,async(db)=>{const [updated]=await db.update(projects).set({name:input.name,description:input.description||null,status:input.status,archivedAt:input.status==="archived"?now:null,updatedAt:now}).where(and(eq(projects.id,input.projectId),eq(projects.workspaceId,context.workspaceId))).returning({id:projects.id});if(updated)await db.update(repositories).set({scanEnabled:input.status!=="archived",archivedAt:input.status==="archived"?now:null,updatedAt:now}).where(and(eq(repositories.projectId,input.projectId),eq(repositories.workspaceId,context.workspaceId)));return [updated];});
+  const [project]=await withWorkspaceMutation(context.workspaceId,async(db)=>{
+    const [existing]=await db.select().from(projects).where(and(eq(projects.id,input.projectId),eq(projects.workspaceId,context.workspaceId))).for("update");
+    if(!existing)throw new Error("Project not found in workspace.");
+    if(input.status!=="archived"){
+      const [client]=await db.select({id:clients.id}).from(clients).where(and(eq(clients.id,existing.clientId),eq(clients.workspaceId,context.workspaceId),eq(clients.status,"active"))).limit(1);
+      if(!client)throw new Error("Restore the client before activating its projects.");
+      if(existing.status==="archived")await assertWorkspaceCanCreate(context.workspaceId,"project",db);
+    }
+    const updated=await db.update(projects).set({name:input.name,description:input.description||null,status:input.status,archivedAt:input.status==="archived"?now:null,updatedAt:now}).where(and(eq(projects.id,input.projectId),eq(projects.workspaceId,context.workspaceId))).returning({id:projects.id});
+    // Metadata edits must not reactivate deliberately disabled or disconnected repositories.
+    if(input.status==="archived")await db.update(repositories).set({scanEnabled:false,archivedAt:now,updatedAt:now}).where(and(eq(repositories.projectId,input.projectId),eq(repositories.workspaceId,context.workspaceId)));
+    return updated;
+  });
   if(!project)throw new Error("Project not found in workspace.");revalidatePath(`/${input.locale}/projects`);revalidatePath(`/${input.locale}/projects/${input.projectId}`);
 }
 
@@ -65,7 +77,7 @@ export async function reviewDiscovery(formData: FormData) {
   const input=z.object({ locale:z.enum(["fr","en"]), integrationId:z.uuid(), decision:z.enum(["confirm","ignore"]) }).parse(Object.fromEntries(formData));
   const context=await requireWorkspaceMutationContext(input.locale);
   const now=new Date();
-  await withAuthorizedWorkspace(context.workspaceId,async(tx)=>{
+  await withWorkspaceMutation(context.workspaceId,async(tx)=>{
     const [integration]=await tx.select().from(projectIntegrations).where(and(eq(projectIntegrations.id,input.integrationId),eq(projectIntegrations.workspaceId,context.workspaceId))).limit(1); if(!integration) throw new Error("Discovery not found.");
     await tx.update(projectIntegrations).set(input.decision==="confirm"?{lifecycleStatus:"active",reviewStatus:"confirmed",confirmedAt:now,updatedAt:now}:{reviewStatus:"ignored",ignoredAt:now,updatedAt:now}).where(eq(projectIntegrations.id,input.integrationId));
     await tx.insert(integrationEvents).values({workspaceId:context.workspaceId,integrationId:input.integrationId,actorUserId:context.userId,eventType:input.decision==="confirm"?"confirmed":"ignored"});

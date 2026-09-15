@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isExportWindowExpired } from "@/server/privacy/access";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -50,15 +51,15 @@ export async function ensureWorkspaceForUser(userId: string) {
 }
 
 export async function requireSession(locale = "fr") {
-  if (env.AUTH_TEST_MODE === "true") return { user: { id: "test-owner", email: "owner@example.invalid", emailVerified: true }, session: { activeOrganizationId: "test-yodev" } };
+  if (env.AUTH_TEST_MODE === "true") return { user: { id: "seed-owner", email: "owner@example.invalid", emailVerified: true }, session: { activeOrganizationId: "seed-yodev" } };
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session?.user) redirect(`/${locale}/sign-in`);
   return session;
 }
 
-export async function requireWorkspaceContext(locale = "fr"): Promise<WorkspaceContext> {
+export async function requireWorkspaceContext(locale = "fr", allowExpiredDeletion = false): Promise<WorkspaceContext> {
   if (env.AUTH_TEST_MODE === "true") {
-    return { userId: "test-owner", workspaceId: "00000000-0000-4000-8000-000000000001", organizationId: "test-yodev", role: "owner" };
+    return { userId: "seed-owner", workspaceId: "00000000-0000-4000-8000-000000000001", organizationId: "seed-yodev", role: "owner" };
   }
   const session = await requireSession(locale);
   let workspace = await findWorkspaceMembership(session.user.id, session.session.activeOrganizationId);
@@ -69,6 +70,7 @@ export async function requireWorkspaceContext(locale = "fr"): Promise<WorkspaceC
       redirect(`/${locale}/onboarding`);
     }
   }
+  if (!allowExpiredDeletion && await isExportWindowExpired(requireServiceDb(), workspace.workspaceId)) redirect(`/${locale}/settings/privacy`);
   return { userId: session.user.id, ...workspace };
 }
 

@@ -1,16 +1,8 @@
+import { currencyFractionDigits } from "@/lib/money";
+
 export type ScaledDecimal = {
   value: bigint;
   scale: number;
-};
-
-const currencyFractionDigits: Record<string, number> = {
-  BHD: 3,
-  CLP: 0,
-  EUR: 2,
-  GBP: 2,
-  JPY: 0,
-  KWD: 3,
-  USD: 2,
 };
 
 function assertScale(scale: number) {
@@ -61,7 +53,7 @@ export function rescaleDecimal(decimal: ScaledDecimal, targetScale: number): Sca
 }
 
 export function currencyScale(currency: string) {
-  return currencyFractionDigits[currency.toUpperCase()] ?? 2;
+  return currencyFractionDigits(currency.toUpperCase());
 }
 
 export function decimalToMinorUnits(input: string, currency: string) {

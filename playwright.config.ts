@@ -9,12 +9,16 @@ export default defineConfig({
   // The smoke suite shares one seeded workspace and one Next dev server.
   // Serial execution avoids concurrent first-compilation races and DB fixture contention.
   fullyParallel: false,
+  workers: 1,
+  timeout: 120_000,
+  // Dev routes compile on first navigation; this is not a production latency budget.
+  expect: { timeout: 30_000 },
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL, trace: "on-first-retry" },
   webServer: {
     command: `npm run dev -- --port ${port}`,
-    env: { ...process.env, AUTH_TEST_MODE: "true", DATABASE_URL: databaseURL },
+    env: { ...process.env, AUTH_TEST_MODE: "true", DEMO_DATA_ENABLED: "false", DATABASE_URL: databaseURL },
     url: `${baseURL}/fr/dashboard`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

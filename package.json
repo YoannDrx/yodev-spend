@@ -25,7 +25,11 @@
     "db:bootstrap": "tsx scripts/bootstrap.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "beta:invite": "tsx scripts/create-beta-invitation.ts"
+    "beta:invite": "tsx scripts/create-beta-invitation.ts",
+    "check:db-security": "node scripts/check-db-security.mjs",
+    "test:e2e:auth": "playwright test --config=playwright.auth.config.ts",
+    "check:staging": "node scripts/check-staging-readiness.mjs",
+    "check:operations": "node scripts/check-operations.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-cost-explorer": "^3.1112.0",
@@ -40,7 +44,7 @@
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.25.0",
-    "next": "^16.3.0",
+    "next": "^16.3.5",
     "next-intl": "^4.6.1",
     "next-themes": "^0.4.6",
     "octokit": "^5.0.5",
@@ -55,6 +59,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.61.1",
     "@swc/helpers": "^0.5.23",
     "@tailwindcss/postcss": "^4.1.18",
@@ -64,15 +69,16 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.2",
-    "eslint-config-next": "^16.3.0",
+    "eslint-config-next": "^16.3.5",
     "jsdom": "^29.0.0",
     "tailwindcss": "^4.1.18",
     "tsx": "^4.23.1",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.10"
+    "vite": "^8.2.1",
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "esbuild": "^0.28.2"

@@ -64,6 +64,11 @@ export async function configureGitHubAppWebhook() {
 export class GitHubRepositoryAdapter implements RepositorySourceAdapter {
   constructor(private installationId: number) {}
   private async octokit() { return app().getInstallationOctokit(this.installationId); }
+  async getRepository(externalId: number): Promise<ExternalRepository> {
+    const repo = (await this.listRepositories()).find((item) => item.externalId === externalId);
+    if (!repo) throw new Error("Repository is not accessible to this installation.");
+    return repo;
+  }
   async listRepositories(): Promise<ExternalRepository[]> {
     const octokit = await this.octokit();
     const repositories = await octokit.paginate(

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { legalDocumentVersion } from "./legal-readiness";
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, isNotNull, lte, or, sql } from "drizzle-orm";
 import {
@@ -21,9 +22,9 @@ import type { CommercialPlanCode } from "./plans";
 import { hashBetaInvitationToken } from "./beta-invitation-security";
 
 export const commercialDocumentVersions = {
-  terms: "2026-08-13",
-  privacy: "2026-08-13",
-  dpa: "2026-08-13",
+  terms: legalDocumentVersion,
+  privacy: legalDocumentVersion,
+  dpa: legalDocumentVersion,
 } as const;
 
 export type CommercialOnboardingInput = {

@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import { Archive } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -22,17 +23,17 @@ export default async function ClientDetailPage({
   if (!data) notFound();
 
   const action = data.client.status !== "archived" ? (
-    <form action={archiveClient}>
+    <ActionForm action={archiveClient}>
       <input type="hidden" name="locale" value={locale} />
       <input type="hidden" name="clientId" value={clientId} />
       <button className="button" type="submit"><Archive size={13} />{t("archive")}</button>
-    </form>
-  ) : <form action={restoreClient}><input type="hidden" name="locale" value={locale}/><input type="hidden" name="clientId" value={clientId}/><button className="button" type="submit">{t("restore")}</button></form>;
+    </ActionForm>
+  ) : <ActionForm action={restoreClient}><input type="hidden" name="locale" value={locale}/><input type="hidden" name="clientId" value={clientId}/><button className="button" type="submit">{t("restore")}</button></ActionForm>;
 
   return (
     <>
       <PageHeader title={data.client.name} subtitle={data.client.description ?? t("subtitle")} action={action} />
-      <details className="panel" style={{ marginBottom: 16 }}><summary className="panel-head"><h2>{t("edit")}</h2></summary><form action={updateClient} className="form-card"><input type="hidden" name="locale" value={locale}/><input type="hidden" name="clientId" value={clientId}/><label className="field"><span>{t("name")}</span><input name="name" defaultValue={data.client.name} required/></label><label className="field"><span>{t("description")}</span><textarea name="description" defaultValue={data.client.description??""}/></label><button className="button button-primary" type="submit">{t("save")}</button></form></details>
+      <details className="panel" style={{ marginBottom: 16 }}><summary className="panel-head"><h2>{t("edit")}</h2></summary><ActionForm action={updateClient} className="form-card"><input type="hidden" name="locale" value={locale}/><input type="hidden" name="clientId" value={clientId}/><label className="field"><span>{t("name")}</span><input name="name" defaultValue={data.client.name} required/></label><label className="field"><span>{t("description")}</span><textarea name="description" defaultValue={data.client.description??""}/></label><button className="button button-primary" type="submit">{t("save")}</button></ActionForm></details>
       <section className="panel">
         <div className="panel-head"><h2>{t("projects")}</h2></div>
         <div className="panel-body">

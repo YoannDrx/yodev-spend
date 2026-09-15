@@ -1,3 +1,5 @@
+import { processDueDeletions } from "@/server/privacy/deletion";
+import { recoverAbandonedRuns } from "@/server/operations/recovery";
 import { and, asc, inArray, isNull } from "drizzle-orm";
 import { providerConnections } from "@/db/schema";
 import { requireServiceDb } from "@/db";
@@ -19,12 +21,14 @@ export async function GET(request: Request) {
   if (env.CRON_ENABLED !== "true") return new Response(null, { status: 204 });
 
   const started = Date.now();
+  await recoverAbandonedRuns();
   let fxRatesImported = 0;
   try {
     fxRatesImported = await syncEcbReferenceRates();
   } catch {
     logEvent("ecb_fx_sync_failed", { errorCode: "ECB_FX_SYNC_FAILED" });
   }
+  const deletionCleanup = await processDueDeletions();
   const onboardingCleanup = await expireAbandonedCommercialOnboarding();
   const lifecycleAlerts = await generateLifecycleAlerts();
   const connections = await requireServiceDb().select({
@@ -69,5 +73,5 @@ export async function GET(request: Request) {
   }
 
   logEvent("finops_cron_completed", { processed: results.length, durationMs: Date.now() - started });
-  return Response.json({ processed: results.length, fxRatesImported, onboardingCleanup, lifecycleAlerts, results });
+  return Response.json({ processed: results.length, fxRatesImported, onboardingCleanup, deletionCleanup, lifecycleAlerts, results },{status:deletionCleanup.failed?503:200});
 }
